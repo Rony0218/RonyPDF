@@ -16,7 +16,7 @@ Cada versión trae dos pruebas:
 1. **Suma SHA-256.** En PowerShell, en la carpeta donde descargaste el zip:
 
    ```powershell
-   Get-FileHash .\RonyPDF-2.0.0-portable.zip -Algorithm SHA256
+   Get-FileHash .\RonyPDF-*-portable.zip -Algorithm SHA256
    ```
 
    El resultado debe ser igual al de `SHA256SUMS.txt` y al de la nota de la versión. `SHA256SUMS.txt` trae
@@ -25,7 +25,7 @@ Cada versión trae dos pruebas:
 2. **Procedencia firmada.** Con [GitHub CLI](https://cli.github.com/):
 
    ```powershell
-   gh attestation verify RonyPDF-2.0.0-portable.zip --repo Rony0218/RonyPDF
+   gh attestation verify (Get-Item .\RonyPDF-*-portable.zip) --repo Rony0218/RonyPDF
    ```
 
    Comprueba, con una firma de [Sigstore](https://www.sigstore.dev/), que el archivo lo compiló GitHub Actions a

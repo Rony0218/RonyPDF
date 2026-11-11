@@ -104,6 +104,33 @@ def test_patrones_activos_por_defecto():
     assert not censura.PATRONES["placa"].activo and not censura.PATRONES["fecha"].activo
 
 
+@pytest.mark.parametrize("guion", ["\u2010", "\u2011", "\u2012", "\u2013", "\u2212", "\u00ad", "\uff0d"])
+def test_guiones_tipograficos_cuentan_como_guion(guion):
+    """El guion de un PDF con fuentes incrustadas sale como U+2010 y otros: el NIT conserva su dígito de
+    verificación y el celular con guiones se encuentra (antes quedaba «█████-8» y el celular sin censurar)."""
+    texto = f"NIT 901.234.567{guion}8 y celular 310{guion}456{guion}7890"
+    assert censura.coincidencias("nit", texto) == [f"901.234.567{guion}8"]
+    assert censura.coincidencias("celular", texto) == [f"310{guion}456{guion}7890"]
+    assert len(censura.normalizar(texto)) == len(texto)          # misma longitud: las zonas no se corren
+
+
+def test_guiones_en_un_pdf_real_con_segoe_ui(tmp_path):
+    """Un PDF hecho con Segoe UI incrustada: MuPDF devuelve U+2010 y aun así se censura completo."""
+    fuente = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "segoeuib.ttf")
+    if not os.path.exists(fuente):
+        pytest.skip("Segoe UI no está instalada")
+    doc = pymupdf.open()
+    pag = doc.new_page()
+    pag.insert_font(fontname="s", fontfile=fuente)
+    pag.insert_text((50, 100), "NIT 901.234.567-8 · Celular 310-456-7890", fontname="s", fontsize=11)
+    doc.subset_fonts()
+    ruta = tmp_path / "ficha.pdf"
+    doc.save(ruta)
+    texto = pymupdf.open(ruta)[0].get_text()
+    assert censura.coincidencias("nit", texto)[0].endswith("8")
+    assert len(censura.coincidencias("celular", texto)) == 1
+
+
 def test_validar_nit_y_luhn():
     assert censura.validar_nit("899.999.068-1")
     assert censura.validar_nit("8999990681")

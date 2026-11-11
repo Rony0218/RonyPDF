@@ -32,12 +32,23 @@ Rect4 = tuple[float, float, float, float]
 
 _BASE: dict[str, str] = {}
 
+# Al extraer el texto de un PDF, el guion de «901.234.567-8» o «310-456-7890» suele salir como otro carácter:
+# con fuentes como Segoe UI incrustadas, MuPDF devuelve U+2010 (guion tipográfico); Word usa a veces el guion
+# de no separación, la raya corta o el guion suave.  Para buscar datos cuentan todos como «-»: si no, un
+# celular con guiones no se encuentra y a un NIT se le escapa el dígito de verificación.  (La raya larga
+# «—» no entra: separa frases, no números.)
+_GUIONES = dict.fromkeys("\u00ad\u2010\u2011\u2012\u2013\u2212\ufe63\uff0d", "-")
+
 
 def _base(c: str) -> str:
     r = _BASE.get(c)
     if r is None:
-        d = unicodedata.normalize("NFD", c)
-        r = d[0] if d and len(c) == 1 else c
+        g = _GUIONES.get(c)
+        if g is not None:
+            r = g
+        else:
+            d = unicodedata.normalize("NFD", c)
+            r = d[0] if d and len(c) == 1 else c
         _BASE[c] = r
     return r
 
