@@ -1,0 +1,16 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+*.log
+.pytest_cache/
+RonyPDF.json
+
+# Exploración de diseño completa (pesada y con registros locales); lo publicable está en docs/diseno
+ideas-diseno/
+# Video: cuadros y audio intermedios
+video/frames/
+video/snaps/
+video/*.wav
+video/salida/

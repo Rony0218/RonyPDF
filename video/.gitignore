@@ -1,0 +1,9 @@
+# Lo que se genera al correr los scripts (ver README.md): no va al repositorio
+*.mp4
+*.wav
+frames/
+snaps/
+salida/
+capturas/
+voz/*.wav
+__pycache__/

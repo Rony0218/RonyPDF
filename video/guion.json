@@ -1,0 +1,217 @@
+{
+ "nota": "Guion del video de RonyPDF 2.0. «texto» es lo que lee la voz (con la puntuación que guía la entonación); «pantalla», si existe, es como se escribe en los subtítulos. «pausa» es el silencio antes de la línea, en segundos. «escena» es la escena de index.html que acompaña la línea y «claves» son las palabras que marcan los golpes de la animación y los efectos (tiempos.py les pone el tiempo con Whisper).",
+ "voz": "El narrador de siempre: Qwen3-TTS Base clonando voz/referencia.wav.",
+ "muestra": "Hay cosas de la casa en la que vives que nunca ves, pero que trabajan todos los días para que sigas en pie.",
+ "lineas": [
+  {
+   "escena": "nube",
+   "pausa": 0.2,
+   "texto": "¿Todavía le subes tus documentos confidenciales a páginas web como I Love PDF?",
+   "pantalla": "¿Todavía le subes tus documentos confidenciales a páginas web como iLovePDF?",
+   "claves": [
+    "subes",
+    "confidenciales",
+    "iLovePDF"
+   ]
+  },
+  {
+   "escena": "licencia",
+   "pausa": 0.22,
+   "texto": "¿O pagas licencias que se comen tu presupuesto?",
+   "claves": [
+    "licencias",
+    "presupuesto"
+   ]
+  },
+  {
+   "escena": "pirata",
+   "pausa": 0.22,
+   "texto": "¿O peor aún... todavía instalas software pirata?",
+   "claves": [
+    "peor",
+    "pirata"
+   ]
+  },
+  {
+   "escena": "era",
+   "pausa": 0.4,
+   "texto": "Pues en la era de la inteligencia artificial... eso ya no es necesario.",
+   "claves": [
+    "inteligencia",
+    "necesario"
+   ]
+  },
+  {
+   "escena": "tokens",
+   "pausa": 0.35,
+   "texto": "Te presento mi primer proyecto gratis, lanzado al público.",
+   "claves": [
+    "primer",
+    "gratis",
+    "público"
+   ]
+  },
+  {
+   "escena": "tokens",
+   "pausa": 0.2,
+   "texto": "Después de muchas horas iterando... y más de mil millones de tokens... creé RonyPDF.",
+   "claves": [
+    "horas",
+    "mil",
+    "tokens",
+    "RonyPDF"
+   ]
+  },
+  {
+   "escena": "offline",
+   "pausa": 0.55,
+   "texto": "Una app para tus PDF que funciona sin internet: tus archivos nunca salen de tu computador.",
+   "claves": [
+    "internet",
+    "archivos",
+    "computador"
+   ]
+  },
+  {
+   "escena": "gratis",
+   "pausa": 0.18,
+   "texto": "Es gratis, de código abierto... y portátil: un solo archivo, sin instalar nada.",
+   "claves": [
+    "gratis",
+    "código",
+    "portátil",
+    "archivo",
+    "instalar"
+   ]
+  },
+  {
+   "escena": "editar",
+   "pausa": 0.2,
+   "texto": "Abres un PDF y lo editas: escribes, resaltas, dibujas... y firmas.",
+   "claves": [
+    "editas",
+    "escribes",
+    "resaltas",
+    "dibujas",
+    "firmas"
+   ]
+  },
+  {
+   "escena": "organizar",
+   "pausa": 0.18,
+   "texto": "Unes, divides, ordenas páginas... y comprimes.",
+   "claves": [
+    "Unes",
+    "divides",
+    "ordenas",
+    "comprimes"
+   ]
+  },
+  {
+   "escena": "ocr",
+   "pausa": 0.18,
+   "texto": "¿Un documento escaneado? Reconoce el texto... para que lo busques y lo copies.",
+   "claves": [
+    "escaneado",
+    "Reconoce",
+    "busques",
+    "copies"
+   ]
+  },
+  {
+   "escena": "convertir",
+   "pausa": 0.18,
+   "texto": "Pasa de PDF a Word, a Excel o a imágenes... y de vuelta a PDF.",
+   "claves": [
+    "Word",
+    "Excel",
+    "imágenes",
+    "vuelta"
+   ]
+  },
+  {
+   "escena": "censurar",
+   "pausa": 0.22,
+   "texto": "¿Vas a compartir un contrato? Censura cédulas, celulares, correos y cuentas... y se borran de verdad.",
+   "claves": [
+    "contrato",
+    "cédulas",
+    "celulares",
+    "correos",
+    "cuentas",
+    "verdad"
+   ]
+  },
+  {
+   "escena": "mas",
+   "pausa": 0.18,
+   "texto": "Y además: formularios, contraseñas, marcas de agua, comparar versiones... ¡y mucho más!",
+   "claves": [
+    "formularios",
+    "contraseñas",
+    "marcas",
+    "comparar",
+    "mucho"
+   ]
+  },
+  {
+   "escena": "paleta",
+   "pausa": 0.22,
+   "texto": "¿No encuentras algo? Presiona Control K y escribe como hablas: juntar... y te lleva a Unir PDF.",
+   "claves": [
+    "Control",
+    "escribe",
+    "juntar",
+    "Unir"
+   ]
+  },
+  {
+   "escena": "instalar",
+   "pausa": 0.35,
+   "texto": "¿Y lo mejor? Solo dile a tu IA: instálame RonyPDF desde GitHub.",
+   "claves": [
+    "mejor",
+    "IA",
+    "instálame",
+    "GitHub"
+   ]
+  },
+  {
+   "escena": "instalar",
+   "pausa": 0.2,
+   "texto": "O descarga el zip... y listo.",
+   "claves": [
+    "zip",
+    "listo"
+   ]
+  },
+  {
+   "escena": "cierre",
+   "pausa": 0.4,
+   "texto": "Para más cosas como esta... ¡sígueme!",
+   "claves": [
+    "sígueme"
+   ]
+  },
+  {
+   "escena": "cierre",
+   "pausa": 0.2,
+   "texto": "Y si tienes el corazón gigante y quieres apoyar el proyecto, mira el enlace en la descripción.",
+   "claves": [
+    "corazón",
+    "apoyar",
+    "descripción"
+   ]
+  },
+  {
+   "escena": "final",
+   "pausa": 0.35,
+   "texto": "Y recuerda... ¡que viva el software libre!",
+   "claves": [
+    "recuerda",
+    "viva",
+    "libre"
+   ]
+  }
+ ]
+}

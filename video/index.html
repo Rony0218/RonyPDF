@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>RonyPDF 2.0 · video con voz</title>
+<!--
+  Video de RonyPDF 2.0 con voz, hecho con HTML y una línea de tiempo determinista.
+  index.html?f=reel  → 1080 × 1920 (Instagram, TikTok, Shorts)
+  index.html?f=feed  → 1080 × 1350 (LinkedIn)
+  index.html?f=reel&portada → la portada del reel (una imagen fija)
+  Sin ?render se reproduce en el navegador, sin sonido (espacio = pausa, flechas = ±1 s, barra para buscar).
+  Con ?render, render.mjs llama a TL.seek(t) cuadro a cuadro y captura cada uno.
+  Los tiempos salen de escenas.js (tiempos.py), que a su vez sale de la voz: no hay tiempos escritos a mano,
+  todo se ancla a las palabras clave de cada línea (K(línea, "palabra")).
+-->
+<style>
+  @font-face { font-family: "Space Grotesk"; src: url("../ronypdf/assets/fonts/SpaceGrotesk-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "Space Grotesk"; src: url("../ronypdf/assets/fonts/SpaceGrotesk-SemiBold.ttf"); font-weight: 600; }
+  :root { --brand:#d7373a; --brand2:#be2c2f; --ink:#161a25; --ink2:#4a5266; --ink3:#6a7184; --canvas:#f4f5f9; --line:#e3e6ee;
+          --dark:#0d0f15; --hl:#FFE14D; --ver:#7b5ce5; --org:#2e8bd8; --opt:#e5672f; --conv:#129c80; --edit:#d8437f;
+          --seg:#4f63e0; --ok:#1e7b45; }
+  html, body { margin:0; background:#18181B; }
+  body { display:flex; flex-direction:column; align-items:center; }
+  #stage { position:relative; overflow:hidden; background:var(--canvas); color:var(--ink);
+           font-family:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+           transform-origin:0 0; -webkit-font-smoothing:antialiased; }
+  .abs { position:absolute; left:0; top:0; }
+  .scene { position:absolute; inset:0; display:none; }
+  .g { font-family:"Space Grotesk","Segoe UI",sans-serif; font-weight:700; letter-spacing:-.02em; }
+  .eyebrow { font-family:"Space Grotesk","Segoe UI",sans-serif; font-weight:700; letter-spacing:.16em; white-space:nowrap; }
+  .title { font-family:"Space Grotesk","Segoe UI",sans-serif; font-weight:700; letter-spacing:-.03em; line-height:1.02; }
+  .title span { display:inline-block; }
+  .card { position:absolute; overflow:hidden; border-radius:30px; background:#fff;
+          box-shadow:0 34px 80px rgba(22,26,37,.20), 0 4px 14px rgba(22,26,37,.08); }
+  .card img.shot { position:absolute; left:0; top:0; width:2480px; height:1640px; transform-origin:0 0; }
+  .chip { position:absolute; left:0; top:0; display:flex; align-items:center; gap:14px; background:#fff; color:var(--ink);
+          border-radius:999px; font-weight:700; white-space:nowrap; box-shadow:0 14px 34px rgba(22,26,37,.16); }
+  .ring { position:absolute; left:0; top:0; border-radius:18px; border:6px solid var(--brand); box-sizing:border-box;
+          box-shadow:0 0 0 10px rgba(215,55,58,.16); z-index:5; }
+  .tile { position:absolute; left:0; top:0; background:#fff; border-radius:30px; box-sizing:border-box; display:flex;
+          align-items:center; gap:34px; box-shadow:0 18px 44px rgba(22,26,37,.12); }
+  .ic { display:flex; align-items:center; justify-content:center; flex:none; }
+  #sub { position:absolute; left:0; top:0; display:flex; flex-wrap:wrap; justify-content:center; align-content:center;
+         column-gap:.24em; padding:16px 30px 18px; border-radius:26px; background:rgba(14,16,22,.86); color:#fff;
+         font-family:"Space Grotesk","Segoe UI",sans-serif; font-weight:700; line-height:1.2; box-sizing:border-box;
+         text-align:center; box-shadow:0 18px 40px rgba(0,0,0,.22); }
+  #sub span { display:inline-block; border-radius:12px; padding:0 .1em; }
+  #sub span.on { background:var(--hl); color:var(--ink); }
+  #ui { color:#ddd; font:14px "Segoe UI"; margin:10px; display:flex; gap:12px; align-items:center; }
+  #ui input { width:600px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="ui"></div>
+<script src="escenas.js"></script>
+<script src="config.js"></script>
+<script>
+"use strict";
+const Q = new URLSearchParams(location.search);
+const RENDER = Q.has("render"), PORTADA = Q.has("portada");
+const F = Q.get("f") === "feed" ? "feed" : "reel";
+const R = F === "reel";
+const W = 1080, H = R ? 1920 : 1350;
+const ES = window.ESCENAS, DUR = ES.duracion, LINES = ES.lineas, SUBS = ES.subtitulos, DATOS = ES.datos || {};
+const SC = Object.fromEntries(ES.escenas.map(s => [s.id, s]));
+const REV = ES.revelacion;
+const K = (k, w, d = 0) => ((LINES[k - 1].claves || {})[w] ?? LINES[k - 1].desde) + d;   // tiempo de una palabra clave
+const LD = k => LINES[k - 1].desde, LH = k => LINES[k - 1].hasta;
+const CAP = "capturas/", IC = "capturas/iconos/";
+const A = window.AUTOR || {};
+
+// Medidas de cada formato. En el vertical se respeta lo que tapan los botones de la red social: nada importante
+// arriba de y≈170, debajo de y≈1650 ni en la esquina x>960 con y>1100. Los subtítulos van centrados, más angostos.
+const L = R ? {
+  brandY: 200, eyeY: 268, eyeSize: 30, titleY: 306, titleSize: 80,
+  card: { x: 60, y: 548, w: 960, h: 780 }, mid: 820, hs: 1,
+  subY: 1478, subW: 820, subSize: 60,
+} : {
+  brandY: 56, eyeY: 108, eyeSize: 26, titleY: 142, titleSize: 62,
+  card: { x: 60, y: 322, w: 960, h: 770 }, mid: 600, hs: 0.82,
+  subY: 1216, subW: 940, subSize: 50,
+};
+
+// ---------------------------------------------------------------- utilidades
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, p) => a + (b - a) * p;
+const E = {
+  lin: t => t,
+  out: t => 1 - Math.pow(1 - t, 3),
+  out5: t => 1 - Math.pow(1 - t, 5),
+  inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  in: t => t * t * t,
+  back: t => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  elastic: t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI) / 3) + 1,
+};
+const P = (t, a, b, e = E.out) => e(clamp((t - a) / (b - a)));
+const rnd = s => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };   // azar fijo
+const stage = document.getElementById("stage");
+stage.style.width = W + "px"; stage.style.height = H + "px";
+
+function el(tag, cls, parent, html) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html != null) n.innerHTML = html;
+  (parent || stage).appendChild(n);
+  return n;
+}
+function css(n, o) { Object.assign(n.style, o); return n; }
+function tf(n, { x = 0, y = 0, s = 1, r = 0, o = 1 } = {}) {
+  n.style.transform = `translate(${x}px,${y}px) scale(${s}) rotate(${r}deg)`;
+  n.style.opacity = o;
+}
+const IMGS = [];
+function img(src, cls, parent) {
+  const i = el("img", cls, parent);
+  i.src = src; i.decoding = "sync"; IMGS.push(i);
+  return i;
+}
+const miles = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+const tamano = b => b >= 1048576 ? (b / 1048576).toFixed(1).replace(".", ",") + " MB" : (b / 1024).toFixed(1).replace(".", ",") + " KB";
+const show = (n, on) => { n.style.display = on ? "" : "none"; };
+
+// íconos (trazos simples, sin marcas de terceros)
+const SVG = {
+  laptop: c => `<svg viewBox="0 0 120 80" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="3.2" stroke-linejoin="round"><rect x="18" y="6" width="84" height="54" rx="6"/><path d="M6 66h108l-6 8H12z" fill="${c}" fill-opacity=".18"/><rect x="24" y="12" width="72" height="42" rx="2" fill="${c}" fill-opacity=".08" stroke-width="0"/></svg>`,
+  cloud: c => `<svg viewBox="0 0 120 80" width="100%" height="100%" fill="${c}" fill-opacity=".14" stroke="${c}" stroke-width="3.2" stroke-linejoin="round"><path d="M32 70h58a20 20 0 0 0 2-40 28 28 0 0 0-53-6A22 22 0 0 0 32 70z"/></svg>`,
+  globe: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.8 2.6 15.2 0 18M12 3c-2.6 2.8-2.6 15.2 0 18"/></svg>`,
+  skull: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 2.8c-4.6 0-8 3.3-8 7.6 0 2.5 1.1 4.2 2.6 5.2V19h2.2v-1.6h1.6V19h3.2v-1.6h1.6V19h2.2v-3.4c1.5-1 2.6-2.7 2.6-5.2 0-4.3-3.4-7.6-8-7.6z"/><circle cx="8.8" cy="10.6" r="1.9" fill="${c}"/><circle cx="15.2" cy="10.6" r="1.9" fill="${c}"/><path d="M12 13.2l-1 2h2z" fill="${c}"/></svg>`,
+  warn: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3.5l9.5 16.5h-19z" fill="${c}" fill-opacity=".15"/><path d="M12 10v4.6M12 17.4v.1"/></svg>`,
+  receipt: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/></svg>`,
+  upload: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8"/><path d="M12 12v8M9 15l3-3 3 3"/></svg>`,
+  sparkle: c => `<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M12 1.5c.9 5.6 4.9 9.6 10.5 10.5-5.6.9-9.6 4.9-10.5 10.5C11.1 16.9 7.1 12.9 1.5 12 7.1 11.1 11.1 7.1 12 1.5z" fill="${c}"/></svg>`,
+  clock: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.8"><circle cx="12" cy="12" r="9.2"/></svg>`,
+  wifioff: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><path d="M2.5 8.8a14 14 0 0 1 19 0M5.6 12.2a9.6 9.6 0 0 1 12.8 0M8.8 15.5a5 5 0 0 1 6.4 0"/><circle cx="12" cy="19" r="1.1" fill="${c}"/><path d="M3.5 3.5l17 17" stroke-width="2.4"/></svg>`,
+  lock: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>`,
+  code: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7L3.5 12l5 5M15.5 7l5 5-5 5M13.5 4.5l-3 15"/></svg>`,
+  check: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>`,
+  search: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>`,
+  copy: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/></svg>`,
+  cursor: '<svg width="54" height="54" viewBox="0 0 24 24"><path d="M4 2.5l15 9.2-6.6 1.4 3.9 7.1-2.7 1.4-3.8-7.1L4.9 19z" fill="#111827" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" width="100%" height="100%"><defs><linearGradient id="gh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f06292"/><stop offset="1" stop-color="#d7373a"/></linearGradient></defs><path d="M12 21s-7.8-4.9-9.6-10A5.5 5.5 0 0 1 12 5.6 5.5 5.5 0 0 1 21.6 11c-1.8 5.1-9.6 10-9.6 10z" fill="url(#gh)"/></svg>',
+  arrowDown: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg>`,
+  arrowRight: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M14 6l6 6-6 6"/></svg>`,
+  zip: '<svg viewBox="0 0 64 80" width="100%" height="100%"><path d="M6 4h36l16 16v54a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff" stroke="#c5cad6" stroke-width="2.4"/><path d="M42 4v16h16" fill="#eceef4" stroke="#c5cad6" stroke-width="2.4" stroke-linejoin="round"/><path d="M24 8h6v4h-6zM30 12h6v4h-6zM24 16h6v4h-6zM30 20h6v4h-6zM24 24h6v4h-6z" fill="#6a7184"/><rect x="22" y="30" width="16" height="14" rx="3" fill="#6a7184"/><rect x="10" y="52" width="44" height="16" rx="4" fill="#e5672f"/><text x="32" y="64.5" text-anchor="middle" font-family="Space Grotesk" font-weight="700" font-size="12" fill="#fff">ZIP</text></svg>',
+  user: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>`,
+  camera: c => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="1.9"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/></svg>`,
+};
+
+// ---------------------------------------------------------------- fondo, barra de progreso, marca y cortinillas
+const bgDark = css(el("div", "abs"), { width: W + "px", height: H + "px", background: "#0d0f15" });
+const glowA = css(el("div", "abs"), { width: "1400px", height: "1400px", borderRadius: "50%" });
+const glowB = css(el("div", "abs"), { width: "1200px", height: "1200px", borderRadius: "50%" });
+const dots = css(el("div", "abs"), { width: W + "px", height: H + "px", backgroundSize: "36px 36px" });
+const world = css(el("div", "abs"), { width: W + "px", height: H + "px" });       // todo lo que tiembla
+const bar = css(el("div", "abs"), { height: "8px", background: "var(--brand)", top: "0px", zIndex: 30 });
+
+const brand = css(el("div", "abs", world), { display: "flex", alignItems: "center", gap: "16px", left: "60px", top: (L.brandY - 30) + "px", zIndex: 5 });
+css(img(IC + "logo.png", "", brand), { width: "60px", height: "60px" });
+css(el("div", "g", brand, 'Rony<span style="color:var(--brand)">PDF</span>'), { fontSize: "38px" });
+css(el("div", "g", brand, A.version || "2.0"), { fontSize: "24px", color: "#fff", background: "var(--ink)", borderRadius: "10px", padding: "2px 10px" });
+
+const wipe = css(el("div", "abs"), { width: (W * 1.9) + "px", height: (H * 1.5) + "px", zIndex: 20, top: (-H * 0.25) + "px" });
+const flash = css(el("div", "abs"), { width: W + "px", height: H + "px", background: "#fff", zIndex: 21, opacity: 0 });
+
+// color de acento y tema de cada escena
+const ACC = { nube: "#2e8bd8", licencia: "#e5672f", pirata: "#d7373a", era: "#7b5ce5", tokens: "#7b5ce5", offline: "#1e7b45",
+  gratis: "#d7373a", editar: "#7b5ce5", organizar: "#2e8bd8", ocr: "#129c80", convertir: "#129c80", censurar: "#4f63e0",
+  mas: "#d8437f", paleta: "#d7373a", instalar: "#2e8bd8", cierre: "#d8437f", final: "#d7373a" };
+const OSCURAS = new Set(["nube", "licencia", "pirata", "era", "tokens"]);
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
+// ---------------------------------------------------------------- piezas comunes de las escenas claras
+function titulo(root, eyebrow, title, color) {
+  const eye = css(el("div", "abs eyebrow", root, eyebrow), { left: "62px", top: L.eyeY + "px", fontSize: L.eyeSize + "px", color });
+  const ttl = css(el("div", "abs title", root), { left: "58px", top: L.titleY + "px", width: (W - 116) + "px", fontSize: L.titleSize + "px" });
+  ttl.innerHTML = title.split("<br>").map(l => l.split(" ").map(w => `<span>${w}</span>`).join(" ")).join("<br>");
+  return { eye, ttl, words: [...ttl.querySelectorAll("span")] };
+}
+function entraTitulo(T, t, a) {
+  const pe = P(t, a, a + 0.4);
+  tf(T.eye, { x: (1 - pe) * -30, o: pe });
+  T.words.forEach((w, i) => { const p = P(t, a + 0.06 + i * 0.05, a + 0.42 + i * 0.05, E.back); tf(w, { y: (1 - p) * 46, o: clamp(p * 1.4) }); });
+}
+function tarjeta(root, src, extra = {}) {
+  const c = css(el("div", "card", root), { left: L.card.x + "px", top: L.card.y + "px", width: L.card.w + "px", height: L.card.h + "px", ...extra });
+  const shots = (Array.isArray(src) ? src : [src]).map(s => img(CAP + s + ".png", "shot", c));
+  return { c, shots };
+}
+function entraTarjeta(n, t, a) {
+  const p = P(t, a + 0.04, a + 0.6, E.out5);
+  tf(n, { y: (1 - p) * 160, s: 0.92 + 0.08 * p, o: clamp(p * 1.8) });
+}
+// Cámara sobre una captura de 2480 × 1640: [t, x, y, escala] (centro en píxeles de la captura)
+function camAt(t, keys) {
+  if (t <= keys[0][0]) return keys[0].slice(1);
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i], b = keys[i + 1];
+    if (t <= b[0]) { const p = E.inOut((t - a[0]) / Math.max(1e-3, b[0] - a[0])); return [lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p)]; }
+  }
+  return keys[keys.length - 1].slice(1);
+}
+function aim(cam, cw = L.card.w, ch = L.card.h) {
+  let [x, y, s] = cam;
+  s = Math.max(s, cw / 2480, ch / 1640);
+  const hx = cw / 2 / s, hy = ch / 2 / s;
+  return { x: clamp(x, hx, 2480 - hx), y: clamp(y, hy, 1640 - hy), s, cw, ch };
+}
+function shoot(n, c) { n.style.transform = `translate(${c.cw / 2 - c.x * c.s}px,${c.ch / 2 - c.y * c.s}px) scale(${c.s})`; }
+const toCard = (c, px, py) => [c.cw / 2 + (px - c.x) * c.s, c.ch / 2 + (py - c.y) * c.s];
+// muestra una sola de varias capturas con un fundido corto: estados = [[t, índice], …]
+function estados(shots, t, cambios, fundido = 0.16) {
+  let cur = cambios[0][1], prev = cur, tc = -1;
+  for (const [tt, i] of cambios) if (t >= tt) { prev = cur; cur = i; tc = tt; }
+  const p = tc < 0 ? 1 : P(t, tc, tc + fundido, E.lin);
+  shots.forEach((s, i) => { s.style.opacity = i === cur ? 1 : (i === prev ? 1 - p : 0); s.style.zIndex = i === cur ? 2 : 1; });
+  return cur;
+}
+function anillo(parent, color = "var(--brand)") { const r = el("div", "ring", parent); r.style.borderColor = color; r.style.boxShadow = `0 0 0 10px ${rgba(color.startsWith("#") ? color : "#d7373a", .18)}`; return r; }
+function ponAnillo(r, c, x0, y0, x1, y1, p, pad = 10) {
+  const [a, b] = toCard(c, x0, y0), [d, e] = toCard(c, x1, y1);
+  css(r, { width: (d - a + 2 * pad) + "px", height: (e - b + 2 * pad) + "px" });
+  tf(r, { x: a - pad, y: b - pad, s: 1.25 - 0.25 * E.back(clamp(p)), o: clamp(p * 2.5) });
+}
+function chip(parent, html, size, color = "var(--ink)", bg = "#fff") {
+  return css(el("div", "chip", parent, html), { fontSize: size + "px", padding: `${size * 0.42}px ${size * 0.8}px ${size * 0.42}px ${size * 0.55}px`, color, background: bg });
+}
+function icono(key, px) { return `<img src="${IC}${key}.png" style="width:${px}px;height:${px}px;display:block">`; }
+const svgBox = (svg, px, extra = "") => `<span class="ic" style="width:${px}px;height:${px}px;${extra}">${svg}</span>`;
+function popIn(n, t, a, { x = 0, y = 0, d = 0.38, s0 = 0.5, dy = 0, r = 0 } = {}) {
+  const p = P(t, a, a + d, E.back);
+  tf(n, { x, y: y + (1 - p) * dy, s: s0 + (1 - s0) * p, r: r * (1 - p), o: clamp(P(t, a, a + d * 0.5, E.lin)) });
+  return p;
+}
+const cursor = parent => css(el("div", "abs", parent, SVG.cursor), { filter: "drop-shadow(0 4px 6px rgba(0,0,0,.3))", zIndex: 6 });
+
+// ================================================================ 1. nube: ¿subes tus documentos a una web?
+const s1 = el("div", "scene", world);
+const HS = L.hs;
+const lap = css(el("div", "abs", s1, SVG.laptop("#9fb3c8")), { width: (420 * HS) + "px", height: (280 * HS) + "px" });
+const nube = css(el("div", "abs", s1, SVG.cloud("#5baae8")), { width: (520 * HS) + "px", height: (350 * HS) + "px" });
+const globo = css(el("div", "abs", s1, SVG.globe("#9fd0f7")), { width: (110 * HS) + "px", height: (110 * HS) + "px" });
+const arco = css(el("div", "abs", s1, `<svg width="${W}" height="${H}"><path id="arc" d="" fill="none" stroke="#5baae8" stroke-width="5" stroke-dasharray="4 16" stroke-linecap="round"/></svg>`), {});
+const arcPath = arco.querySelector("#arc");
+const doc = css(el("div", "abs", s1), { width: (200 * HS) + "px", height: (256 * HS) + "px", background: "#fff", borderRadius: (16 * HS) + "px", boxShadow: "0 24px 60px rgba(0,0,0,.45)" });
+doc.innerHTML = [24, 52, 74, 96, 118, 140].map((y, i) => `<i style="position:absolute;left:${22 * HS}px;top:${y * HS}px;height:${9 * HS}px;width:${(i ? 150 - (i % 3) * 22 : 90) * HS}px;border-radius:5px;background:${i ? "#e3e6ee" : "#c5cad6"}"></i>`).join("") +
+  `<b style="position:absolute;left:${16 * HS}px;bottom:${16 * HS}px;font:800 ${18 * HS}px 'Segoe UI';color:#fff;background:#d7373a;border-radius:6px;padding:2px 8px">PDF</b>`;
+const sello1 = css(el("div", "abs g", doc, "CONFIDENCIAL"), { left: (14 * HS) + "px", top: (150 * HS) + "px", fontSize: (24 * HS) + "px", color: "#d7373a", border: `${4 * HS}px solid #d7373a`, borderRadius: "8px", padding: `${2 * HS}px ${8 * HS}px`, letterSpacing: ".04em" });
+const subida = css(el("div", "abs g", s1), { fontSize: (40 * HS) + "px", color: "#fff", display: "flex", alignItems: "center", gap: "16px", background: "rgba(46,139,216,.22)", border: "2px solid rgba(91,170,232,.6)", borderRadius: "999px", padding: "10px 30px" });
+const subIc = el("span", "", subida, svgBox(SVG.upload("#9fd0f7"), 44 * HS));
+const subTxt = el("span", "", subida, "Subiendo… 0 %");
+const servidor = css(el("div", "abs", s1, "Tu archivo queda en un servidor<br>que no es tuyo"), { width: W + "px", textAlign: "center", fontSize: (40 * HS) + "px", fontWeight: 650, color: "#cfd6e2", lineHeight: 1.25 });
+const pos1 = { lapX: W / 2 - 210 * HS, lapY: L.mid + 230 * HS, cloudX: W / 2 - 260 * HS, cloudY: L.mid - 520 * HS };
+function upd1(t) {
+  const a = -0.4, kSub = K(1, "subes"), kConf = K(1, "confidenciales"), kWeb = K(1, "iLovePDF");   // el primer cuadro ya tiene imagen
+  const pl = P(t, a, a + 0.5, E.back);
+  tf(lap, { x: pos1.lapX, y: pos1.lapY + (1 - pl) * 60, s: 0.8 + 0.2 * pl, o: clamp(pl * 2) });
+  const pc = P(t, a + 0.15, a + 0.65, E.back);
+  const pulse = 1 + 0.05 * Math.exp(-Math.max(0, t - (kSub + 1.6)) * 5) * (t > kSub + 1.6 ? 1 : 0);
+  tf(nube, { x: pos1.cloudX, y: pos1.cloudY + (1 - pc) * -60, s: (0.8 + 0.2 * pc) * pulse, o: clamp(pc * 2) });
+  tf(globo, { x: W / 2 - 55 * HS, y: pos1.cloudY + 140 * HS, s: (0.8 + 0.2 * pc) * pulse, r: t * 12, o: clamp(pc * 2) });
+  // el documento sube por el arco
+  const x0 = W / 2, y0 = pos1.lapY + 40 * HS, x1 = W / 2, y1 = pos1.cloudY + 250 * HS;
+  const cx = W / 2 + 330 * HS, cy = (y0 + y1) / 2;
+  arcPath.setAttribute("d", `M${x0} ${y0} Q${cx} ${cy} ${x1} ${y1}`);
+  const fly = P(t, kSub, kSub + 1.7, E.inOut);
+  const len = arcPath.getTotalLength();
+  arcPath.style.strokeDashoffset = 0;
+  arco.style.opacity = P(t, kSub - 0.2, kSub + 0.2) * (1 - P(t, kSub + 1.7, kSub + 2.2));
+  const pt = arcPath.getPointAtLength(len * fly);
+  const din = P(t, a + 0.3, a + 0.7, E.back);
+  const shrink = P(t, kSub + 1.45, kSub + 1.8, E.in);
+  const sh = t > kConf && t < kConf + 0.3 ? Math.sin((t - kConf) * 90) * 8 * (1 - (t - kConf) / 0.3) : 0;
+  tf(doc, { x: pt.x - 100 * HS + sh, y: pt.y - 128 * HS - (1 - fly) * 30, s: (0.55 + 0.45 * din) * (1 - 0.75 * shrink), r: -6 + 10 * fly, o: clamp(din * 2) * (1 - shrink) });
+  const ps = P(t, kConf - 0.05, kConf + 0.25, E.out);
+  tf(sello1, { s: 2.4 - 1.4 * ps, r: -14, o: ps });
+  // progreso de subida
+  const up = P(t, kSub + 0.1, kSub + 1.75, E.inOut);
+  subTxt.textContent = up >= 1 ? "Subido ✓" : `Subiendo… ${Math.round(up * 100)} %`;
+  const pp = P(t, kSub, kSub + 0.35, E.back);
+  tf(subida, { x: W / 2 - subida.offsetWidth / 2, y: pos1.cloudY - 70 * HS, s: 0.7 + 0.3 * pp, o: clamp(pp * 2) });
+  const pw = P(t, kWeb - 0.9, kWeb - 0.5);
+  tf(servidor, { y: pos1.lapY - 150 * HS + (1 - pw) * 30, o: pw });
+}
+
+// ================================================================ 2. licencia: ¿pagas licencias?
+const s2 = el("div", "scene", world);
+const recibo = css(el("div", "abs", s2), { width: (600 * HS) + "px", background: "#fff", borderRadius: (28 * HS) + "px", padding: `${36 * HS}px ${40 * HS}px`, boxSizing: "border-box", boxShadow: "0 30px 80px rgba(0,0,0,.5)" });
+recibo.innerHTML = `<div style="display:flex;align-items:center;gap:${18 * HS}px"><span class="ic" style="width:${64 * HS}px;height:${64 * HS}px;border-radius:16px;background:#fdebe2">${svgBox(SVG.receipt("#e5672f"), 40 * HS)}</span><div><div class="g" style="font-size:${40 * HS}px">Licencia anual</div><div style="font-size:${26 * HS}px;color:#6a7184;font-weight:600">Editor de PDF · 1 usuario</div></div></div>` +
+  ["Renovación automática", "Funciones «Pro»", "Por cada equipo"].map(s => `<div style="display:flex;justify-content:space-between;font-size:${30 * HS}px;font-weight:600;color:#4a5266;border-bottom:2px dashed #e3e6ee;padding:${16 * HS}px 0">${s}<span style="color:#161a25">$ $ $</span></div>`).join("") +
+  `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:${18 * HS}px"><span class="g" style="font-size:${34 * HS}px">Total</span><span class="g" style="font-size:${64 * HS}px;color:#e5672f">$ $ $ $</span></div>`;
+const presu = css(el("div", "abs", s2), { width: (600 * HS) + "px" });
+presu.innerHTML = `<div style="display:flex;justify-content:space-between;font-family:'Space Grotesk';font-weight:700;font-size:${36 * HS}px;color:#fff"><span>Tu presupuesto</span><span id="pp">100 %</span></div>` +
+  `<div style="margin-top:${14 * HS}px;height:${34 * HS}px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden"><div id="pb" style="height:100%;border-radius:999px;background:#36b89b"></div></div>`;
+const ppTxt = presu.querySelector("#pp"), ppBar = presu.querySelector("#pb");
+const monedas = [0, 1, 2, 3, 4, 5, 6].map(i => css(el("div", "abs g", s2, "$"), { width: (66 * HS) + "px", height: (66 * HS) + "px", borderRadius: "50%", background: "#f3b33d", color: "#7a4b00", fontSize: (40 * HS) + "px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 -5px 0 rgba(0,0,0,.18)" }));
+function upd2(t) {
+  const a = SC.licencia.desde, kLic = K(2, "licencias"), kPre = K(2, "presupuesto");
+  const pr = P(t, a, a + 0.45, E.out5);
+  const ry = L.mid - 470 * HS;
+  tf(recibo, { x: W / 2 - 300 * HS, y: ry + (1 - pr) * 300, r: (1 - pr) * 8 - 2, o: clamp(pr * 2) });
+  const pb = P(t, a + 0.2, a + 0.55);
+  const shake = t > kPre && t < kPre + 0.45 ? Math.sin((t - kPre) * 80) * 14 * (1 - (t - kPre) / 0.45) : 0;
+  tf(presu, { x: W / 2 - 300 * HS + shake, y: ry + 760 * HS + (1 - pb) * 40, o: pb });
+  const drain = P(t, kLic, kPre + 0.35, E.inOut);
+  const v = lerp(100, 12, drain);
+  ppTxt.textContent = Math.round(v) + " %";
+  ppBar.style.width = v + "%";
+  ppBar.style.background = v > 55 ? "#36b89b" : (v > 28 ? "#f3b33d" : "#d7373a");
+  monedas.forEach((m, i) => {
+    const t0 = kLic + i * 0.17, p = clamp((t - t0) / 0.9);
+    const x = W / 2 - 33 * HS + (rnd(i) - 0.5) * 520 * HS * p, y = ry + 760 * HS - 40 - p * (260 + rnd(i + 9) * 260) * HS + p * p * 420 * HS;
+    tf(m, { x, y, r: p * 300 * (rnd(i + 3) - 0.5), s: 0.8, o: p > 0 && p < 1 ? 1 - p * p : 0 });
+  });
+}
+
+// ================================================================ 3. pirata: ¿instalas software pirata?
+const s3 = el("div", "scene", world);
+const VW = 780 * HS;
+function ventanaPirata(parent) {
+  const v = css(el("div", "abs", parent), { width: VW + "px", background: "#1d2130", borderRadius: (22 * HS) + "px", overflow: "hidden", boxShadow: "0 34px 90px rgba(0,0,0,.6)", border: "2px solid #2c3246" });
+  v.innerHTML = `<div style="display:flex;align-items:center;gap:${10 * HS}px;background:#272c3d;padding:${16 * HS}px ${22 * HS}px;font:600 ${24 * HS}px 'Segoe UI';color:#aab2c5"><i style="width:14px;height:14px;border-radius:50%;background:#ff5f57"></i><i style="width:14px;height:14px;border-radius:50%;background:#febc2e"></i><i style="width:14px;height:14px;border-radius:50%;background:#28c840"></i><span style="margin-left:12px">Editor_PDF_FULL_crack.exe</span></div>` +
+    `<div style="display:flex;gap:${30 * HS}px;padding:${34 * HS}px ${36 * HS}px ${26 * HS}px">${svgBox(SVG.skull("#f2f4f8"), 130 * HS)}<div><div class="g" style="font-size:${36 * HS}px;color:#fff;line-height:1.15">¿Permitir que esta app haga cambios en tu equipo?</div>` +
+    `<div style="margin-top:${14 * HS}px;font-size:${27 * HS}px;color:#ff8a8a;font-weight:650">Editor: desconocido</div><div style="font-size:${27 * HS}px;color:#8e95a6;font-weight:600">Origen: un enlace de descarga cualquiera</div></div></div>` +
+    `<div style="display:flex;justify-content:flex-end;gap:${16 * HS}px;padding:0 ${36 * HS}px ${30 * HS}px"><span class="g" style="font-size:${30 * HS}px;color:#fff;background:#d7373a;border-radius:14px;padding:${10 * HS}px ${44 * HS}px">Sí</span><span class="g" style="font-size:${30 * HS}px;color:#cfd6e2;background:#2c3246;border-radius:14px;padding:${10 * HS}px ${44 * HS}px">No</span></div>`;
+  return v;
+}
+const vent = ventanaPirata(s3);
+const rebanadas = [0, 1, 2, 3, 4, 5, 6].map(i => { const v = ventanaPirata(s3); v.style.clipPath = `inset(${i * 14.3}% 0 ${100 - (i + 1) * 14.3}% 0)`; return v; });
+const alerta = css(el("div", "abs g", s3, svgBox(SVG.warn("#fff"), 54 * HS) + "<span>Riesgo: virus y robo de datos</span>"), { display: "flex", alignItems: "center", gap: "18px", fontSize: (40 * HS) + "px", color: "#fff", background: "#d7373a", borderRadius: "18px", padding: `${16 * HS}px ${30 * HS}px`, boxShadow: "0 20px 50px rgba(215,55,58,.45)" });
+function upd3(t) {
+  const a = SC.pirata.desde, kPeor = K(3, "peor"), kPir = K(3, "pirata");
+  const pv = P(t, a, a + 0.45, E.back);
+  const vx = W / 2 - VW / 2, vy = L.mid - 300 * HS;
+  const g1 = t > kPeor && t < kPeor + 0.22, g2 = t > kPir - 0.05 && t < kPir + 0.6;
+  const glitch = g1 || g2;
+  tf(vent, { x: vx, y: vy + (1 - pv) * 120, s: 0.85 + 0.15 * pv, o: glitch ? 0 : clamp(pv * 2) });
+  const f = Math.floor(t * 30);
+  rebanadas.forEach((v, i) => {
+    if (!glitch) { v.style.opacity = 0; return; }
+    const dx = (rnd(f * 7 + i) - 0.5) * (g2 ? 90 : 50);
+    tf(v, { x: vx + dx, y: vy, o: 1 });
+    v.style.filter = rnd(f + i * 3) > 0.7 ? "hue-rotate(140deg) saturate(3)" : "none";
+  });
+  const pa = P(t, kPir + 0.1, kPir + 0.45, E.back);
+  tf(alerta, { x: W / 2 - alerta.offsetWidth / 2, y: vy + 560 * HS, s: 0.6 + 0.4 * pa, r: (1 - pa) * -6, o: clamp(pa * 2) });
+}
+
+// ================================================================ 4. era: en la era de la IA ya no es necesario
+const s4 = el("div", "scene", world);
+const prob = [[SVG.upload("#9fd0f7"), "#2e8bd8", "Subir a la web"], [SVG.receipt("#ffb48a"), "#e5672f", "Pagar licencias"], [SVG.skull("#ffb3b3"), "#d7373a", "Piratear"]].map(([svg, c, txt]) => {
+  const n = css(el("div", "abs", s4), { width: (260 * HS) + "px", display: "flex", flexDirection: "column", alignItems: "center", gap: (18 * HS) + "px" });
+  const disco = css(el("div", "ic", n, svgBox(svg, 96 * HS)), { width: (190 * HS) + "px", height: (190 * HS) + "px", borderRadius: "50%", background: rgba(c, .2), border: `3px solid ${rgba(c, .6)}`, position: "relative" });
+  css(el("div", "", n, txt), { color: "#cfd6e2", fontSize: (30 * HS) + "px", fontWeight: 650, whiteSpace: "nowrap" });
+  const x = css(el("div", "abs", disco, `<svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M22 22L78 78M78 22L22 78" stroke="#ff4d4f" stroke-width="10" stroke-linecap="round" fill="none" pathLength="1" stroke-dasharray="1" /></svg>`), { width: "100%", height: "100%" });
+  return { n, x, path: x.querySelector("path") };
+});
+const ia = css(el("div", "abs g", s4, "IA"), { width: W + "px", textAlign: "center", fontSize: (300 * HS) + "px", lineHeight: 1, background: "linear-gradient(120deg,#9b83f0,#5baae8 45%,#e86e9e)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" });
+const iaTxt = css(el("div", "abs", s4, "la era de la inteligencia artificial"), { width: W + "px", textAlign: "center", fontSize: (40 * HS) + "px", color: "#b9b0f5", fontWeight: 650 });
+const chispas = [0, 1, 2, 3, 4].map(i => css(el("div", "abs", s4, SVG.sparkle(["#fff", "#c9bcff", "#9fd0f7", "#ffc2d9", "#fff"][i])), { width: ((i % 2 ? 40 : 64) * HS) + "px", height: ((i % 2 ? 40 : 64) * HS) + "px" }));
+function upd4(t) {
+  const a = SC.era.desde, kIa = K(4, "inteligencia"), kNec = K(4, "necesario");
+  const rowY = L.mid + 120 * HS;
+  prob.forEach((o, i) => {
+    const x = W / 2 - 130 * HS + (i - 1) * 300 * HS;
+    const p = P(t, a + 0.05 + i * 0.1, a + 0.45 + i * 0.1, E.back);
+    const down = P(t, kNec + 0.15 + i * 0.12, kNec + 0.5 + i * 0.12);
+    tf(o.n, { x, y: rowY + (1 - p) * 60 + down * 30, s: (0.6 + 0.4 * p) * (1 - 0.12 * down), o: clamp(p * 2) * (1 - 0.45 * down) });
+    o.path.style.strokeDashoffset = 1 - P(t, kNec - 0.25 + i * 0.12, kNec + 0.05 + i * 0.12, E.inOut);
+  });
+  const pi = P(t, kIa - 0.1, kIa + 0.4, E.back);
+  const glow = 1 + 0.04 * Math.sin(t * 6);
+  tf(ia, { y: L.mid - 400 * HS + (1 - pi) * 60, s: (0.5 + 0.5 * pi) * glow, o: clamp(pi * 2) });
+  const pt = P(t, kIa + 0.2, kIa + 0.6);
+  tf(iaTxt, { y: L.mid - 80 * HS + (1 - pt) * 20, o: pt });
+  chispas.forEach((c, i) => {
+    const ang = i * 1.3 + t * 0.8, rr = (230 + i * 30) * HS;
+    const p = P(t, kIa + i * 0.08, kIa + 0.4 + i * 0.08, E.back);
+    tf(c, { x: W / 2 + Math.cos(ang) * rr - 30, y: L.mid - 260 * HS + Math.sin(ang) * rr * 0.45, s: p * (0.7 + 0.3 * Math.sin(t * 5 + i)), r: t * 40, o: p });
+  });
+}
+
+// ================================================================ 5. tokens: mi primer proyecto, más de mil millones de tokens → RonyPDF
+const s5 = el("div", "scene", world);
+const LOG = ["› Diseño 2.0: categorías con su color", "✓ Censurar: cédulas, NIT y celulares", "› OCR: revisar las palabras dudosas",
+  "✓ Comprimir: 28,4 MB → 593,6 KB", "› Paleta Ctrl K: «juntar» → Unir PDF", "✓ Firmas y sellos propios", "› Unir, dividir y organizar",
+  "✓ Funciona sin internet", "› Proteger y quitar contraseñas", "✓ 582 pruebas pasan", "› Word y Excel ↔ PDF", "✓ Un solo .exe portátil"];
+const log = css(el("div", "abs", s5), { left: "70px", width: (W - 140) + "px", fontFamily: "Consolas, 'Cascadia Mono', monospace", fontSize: (30 * HS) + "px", lineHeight: 1.9, color: "#8e95a6" });
+log.innerHTML = [...LOG, ...LOG, ...LOG].map(s => `<div style="white-space:nowrap">${s}</div>`).join("");
+const proy = css(el("div", "abs", s5), { width: W + "px", display: "flex", flexDirection: "column", alignItems: "center", gap: (26 * HS) + "px" });
+const uno = css(el("div", "g", proy, "#1"), { fontSize: (200 * HS) + "px", lineHeight: 1, background: "linear-gradient(135deg,#ff8a8a,#d7373a)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" });
+const proyT = css(el("div", "g", proy, "Mi primer proyecto"), { fontSize: (74 * HS) + "px", color: "#fff" });
+const proyChips = css(el("div", "", proy), { display: "flex", gap: "18px" });
+const chGratis = css(el("div", "g", proyChips, "Gratis"), { fontSize: (40 * HS) + "px", color: "#0d0f15", background: "#36b89b", borderRadius: "999px", padding: "10px 32px" });
+const chPub = css(el("div", "g", proyChips, "Para el público"), { fontSize: (40 * HS) + "px", color: "#0d0f15", background: "#9fd0f7", borderRadius: "999px", padding: "10px 32px" });
+const reloj = css(el("div", "abs", s5, SVG.clock("#c9bcff") + '<i id="mh" style="position:absolute;left:50%;top:50%;width:6px;height:38%;background:#c9bcff;border-radius:3px;transform-origin:50% 0"></i><i id="hh" style="position:absolute;left:50%;top:50%;width:7px;height:26%;background:#fff;border-radius:3px;transform-origin:50% 0"></i>'), { width: (150 * HS) + "px", height: (150 * HS) + "px" });
+const mh = reloj.querySelector("#mh"), hh = reloj.querySelector("#hh");
+const horas = css(el("div", "abs g", s5, "horas iterando"), { fontSize: (44 * HS) + "px", color: "#c9bcff" });
+const cont = css(el("div", "abs g", s5, "0"), { width: W + "px", textAlign: "center", fontSize: (118 * HS) + "px", color: "#fff", fontVariantNumeric: "tabular-nums" });
+const contL = css(el("div", "abs g", s5, "tokens procesados"), { width: W + "px", textAlign: "center", fontSize: (48 * HS) + "px", color: "#c9bcff" });
+const contD = css(el("div", "abs", s5, "1.369 M leídos del caché · 17,5 M escritos · 6,3 M generados"), { width: W + "px", textAlign: "center", fontSize: (27 * HS) + "px", color: "#8e95a6", fontWeight: 600 });
+// revelación
+const revela = css(el("div", "abs", s5), { width: W + "px", height: H + "px" });
+const rLogo = css(img(IC + "logo.png", "abs", revela), { width: (280 * HS) + "px", height: (280 * HS) + "px", filter: "drop-shadow(0 26px 44px rgba(215,55,58,.4))" });
+const rRing = css(el("div", "abs", revela), { width: (280 * HS) + "px", height: (280 * HS) + "px", borderRadius: "30%", border: "10px solid #d7373a", boxSizing: "border-box" });
+const rWord = css(el("div", "abs title", revela, 'Rony<span style="color:var(--brand)">PDF</span>'), { width: W + "px", textAlign: "center", fontSize: (160 * HS) + "px" });
+const rVer = css(el("span", "g", rWord, A.version || "2.0"), { display: "inline-block", fontSize: (60 * HS) + "px", color: "#fff", background: "var(--ink)", borderRadius: "18px", padding: "2px 20px", marginLeft: "18px", verticalAlign: "super", letterSpacing: "0" });
+const rTag = css(el("div", "abs", revela, "Tus PDF, en tu computador"), { width: W + "px", textAlign: "center", fontSize: (46 * HS) + "px", color: "var(--ink2)", fontWeight: 650 });
+const confeti = Array.from({ length: 26 }, (_, i) => css(el("div", "abs", revela), { width: (i % 3 ? 22 : 30) + "px", height: (i % 3 ? 22 : 12) + "px", borderRadius: i % 2 ? "50%" : "5px", background: ["#7b5ce5", "#2e8bd8", "#e5672f", "#129c80", "#d8437f", "#4f63e0", "#FFE14D"][i % 7] }));
+function burst(parts, t, t0, cx, cy, spread = 520, dur = 1.3, seed = 0) {
+  parts.forEach((c, i) => {
+    const p = clamp((t - t0) / dur);
+    const ang = rnd(i + seed) * Math.PI * 2, d = (0.4 + rnd(i + 50 + seed) * 0.6) * spread * HS;
+    const e = E.out(p);
+    tf(c, { x: cx + Math.cos(ang) * d * e, y: cy + Math.sin(ang) * d * e + p * p * 180, r: p * 400 * (rnd(i + 7) - 0.5), s: 1 - 0.4 * p, o: t >= t0 && p < 1 ? 1 - p * p : 0 });
+  });
+}
+function upd5(t) {
+  const a = SC.tokens.desde, kPrim = K(5, "primer"), kGr = K(5, "gratis"), kPub = K(5, "público");
+  const kHor = K(6, "horas"), kMil = K(6, "mil"), kTok = K(6, "tokens");
+  const despues = t >= REV;
+  // fase A: mi primer proyecto
+  const pa = P(t, kPrim - 0.25, kPrim + 0.2, E.back), outA = P(t, LD(6) - 0.1, LD(6) + 0.25, E.in);
+  css(proy, { top: (L.mid - 260 * HS) + "px" });
+  tf(proy, { s: (0.7 + 0.3 * pa) * (1 - 0.3 * outA), y: -outA * 160, o: clamp(pa * 2) * (1 - outA) });
+  popIn(chGratis, t, kGr - 0.05, { dy: 20 });
+  popIn(chPub, t, kPub - 0.1, { dy: 20 });
+  // fase B: horas iterando y el contador de tokens
+  const pb = P(t, LD(6) - 0.05, LD(6) + 0.4);
+  const outB = P(t, REV - 0.12, REV, E.in);
+  const scroll = (t - LD(6)) * 120;
+  css(log, { top: (L.mid - 520 * HS - scroll) + "px", opacity: 0.26 * pb * (1 - outB) });
+  log.style.maskImage = log.style.webkitMaskImage = "linear-gradient(transparent, #000 25%, #000 75%, transparent)";
+  const pr = P(t, kHor - 0.2, kHor + 0.2, E.back);
+  tf(reloj, { x: W / 2 - 75 * HS - 170 * HS, y: L.mid - 430 * HS, s: 0.6 + 0.4 * pr, o: clamp(pr * 2) * (1 - P(t, kMil - 0.3, kMil, E.in)) * (1 - outB) });
+  mh.style.transform = `translateX(-50%) rotate(${180 + (t - kHor) * 1080}deg)`;
+  hh.style.transform = `translateX(-50%) rotate(${180 + (t - kHor) * 90}deg)`;
+  tf(horas, { x: W / 2 - 75 * HS, y: L.mid - 395 * HS, o: clamp(pr * 2) * (1 - P(t, kMil - 0.3, kMil, E.in)) * (1 - outB) });
+  const pc = P(t, kMil - 0.2, kMil + 0.15, E.back);
+  const n = P(t, kMil - 0.1, kTok + 0.55, E.out5) * 1393340181;
+  cont.textContent = miles(n);
+  tf(cont, { y: L.mid - 250 * HS, s: 0.7 + 0.3 * pc, o: clamp(pc * 2) * (1 - outB) });
+  const pl = P(t, kTok - 0.1, kTok + 0.3);
+  tf(contL, { y: L.mid - 100 * HS + (1 - pl) * 20, o: pl * (1 - outB) });
+  const pd = P(t, kTok + 0.5, kTok + 0.9);
+  tf(contD, { y: L.mid - 20 * HS + (1 - pd) * 14, o: pd * (1 - outB) });
+  // fase C: la revelación de RonyPDF
+  show(revela, despues);
+  if (despues) {
+    const cy = L.mid - 230 * HS;
+    const pl2 = P(t, REV, REV + 0.55, E.back);
+    tf(rLogo, { x: W / 2 - 140 * HS, y: cy - 140 * HS, s: 0.25 + 0.75 * pl2, r: (1 - pl2) * -16, o: clamp(pl2 * 3) });
+    const prr = P(t, REV, REV + 0.8);
+    tf(rRing, { x: W / 2 - 140 * HS, y: cy - 140 * HS, s: 1 + 1.1 * prr, o: 0.8 * (1 - prr) });
+    const pw = P(t, REV + 0.18, REV + 0.6, E.back);
+    tf(rWord, { y: cy + 170 * HS + (1 - pw) * 60, s: 0.8 + 0.2 * pw, o: clamp(pw * 2) });
+    const pv = P(t, REV + 0.45, REV + 0.8, E.back);
+    tf(rVer, { s: 0.3 + 0.7 * pv, r: 14 - 22 * pv, o: clamp(pv * 2) });
+    const pt = P(t, REV + 0.55, REV + 0.95);
+    tf(rTag, { y: cy + 370 * HS + (1 - pt) * 24, o: pt });
+    burst(confeti, t, REV + 0.05, W / 2 - 12, cy, 600, 1.4, 3);
+  }
+}
+
+// ================================================================ 6. offline: funciona sin internet
+const s6 = el("div", "scene", world);
+const T6 = titulo(s6, "FUNCIONA SIN INTERNET", "Nada sale de<br>tu computador", "var(--ok)");
+const C6 = tarjeta(s6, "inicio");
+const r6 = anillo(C6.c, "#1e7b45");
+const wifi = css(el("div", "abs ic", s6, svgBox(SVG.wifioff("#1e7b45"), 92)), { width: "160px", height: "160px", borderRadius: "50%", background: "#e5f4ea", border: "6px solid #fff", boxShadow: "0 18px 40px rgba(30,123,69,.3)" });
+const priv = chip(s6, svgBox(SVG.lock("#1e7b45"), 40) + "Todo pasa en tu equipo", R ? 38 : 34);
+function upd6(t) {
+  const a = SC.offline.desde, kInt = K(7, "internet"), kArch = K(7, "archivos");
+  entraTitulo(T6, t, a); entraTarjeta(C6.c, t, a);
+  const c = aim(camAt(t, [[a, 1240, 900, 0.5], [kInt - 0.35, 1240, 900, 0.5], [kInt + 0.25, 2000, 330, 0.95], [kArch + 0.6, 2000, 330, 0.95], [SC.offline.hasta, 1500, 640, 0.62]]));
+  shoot(C6.shots[0], c);
+  ponAnillo(r6, c, 2112, 30, 2436, 92, P(t, kInt + 0.2, kInt + 0.55), 12);
+  r6.style.opacity *= 1 - P(t, kArch + 0.6, kArch + 0.9);
+  popIn(wifi, t, kInt - 0.1, { x: W - 230, y: L.titleY - 10, r: -20 });
+  const pp = popIn(priv, t, kArch, { x: 90, y: L.card.y + L.card.h - 120, dy: 30 });
+}
+
+// ================================================================ 7. gratis: gratis, código abierto y portátil
+const s7 = el("div", "scene", world);
+const T7 = titulo(s7, "GRATIS DE VERDAD", "Gratis, abierto<br>y portátil", "var(--brand)");
+const th7 = R ? 236 : 222, gap7 = R ? 30 : 22;
+const exeIc = `<span class="ic" style="width:120px;height:140px;position:relative"><svg viewBox="0 0 64 76" width="120" height="140"><path d="M6 3h34l18 18v50a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" fill="#fff" stroke="#c5cad6" stroke-width="2.4"/><path d="M40 3v18h18" fill="#eceef4" stroke="#c5cad6" stroke-width="2.4" stroke-linejoin="round"/><rect x="8" y="50" width="40" height="15" rx="4" fill="#161a25"/><text x="28" y="61.5" text-anchor="middle" font-family="Space Grotesk" font-weight="700" font-size="11" fill="#fff">.EXE</text></svg><img src="${IC}logo.png" style="position:absolute;left:30px;top:30px;width:48px;height:48px"></span>`;
+const tiles7 = [
+  [`<span class="g" style="font-size:${R ? 118 : 104}px;color:var(--brand);width:170px;text-align:center">$0</span>`, "Gratis", "Sin licencias ni suscripciones", "#fdecec"],
+  [`<span class="ic" style="width:150px;height:150px;border-radius:34px;background:#e2f0fb">${svgBox(SVG.code("#2e8bd8"), 92)}</span>`, "Código abierto", "Licencia AGPL-3.0", "#e2f0fb"],
+  [exeIc, "Portátil", "Un solo archivo, sin instalar nada", "#ddf4ee"],
+].map(([ic, t1, t2], i) => {
+  const n = css(el("div", "tile", s7, `${ic}<div><div class="g" style="font-size:${R ? 58 : 52}px">${t1}</div><div style="font-size:${R ? 33 : 30}px;color:var(--ink2);font-weight:600;margin-top:4px">${t2}</div></div>`),
+    { width: L.card.w + "px", height: th7 + "px", padding: "0 44px" });
+  return n;
+});
+const sinInst = css(el("div", "abs ic", s7, svgBox(SVG.check("#fff"), 70)), { width: "116px", height: "116px", borderRadius: "50%", background: "var(--ok)", boxShadow: "0 14px 30px rgba(30,123,69,.35)" });
+function upd7(t) {
+  const a = SC.gratis.desde;
+  entraTitulo(T7, t, a);
+  const ks = [K(8, "gratis"), K(8, "código"), K(8, "portátil")];
+  tiles7.forEach((n, i) => {
+    const p = P(t, ks[i] - 0.12, ks[i] + 0.3, E.back);
+    tf(n, { x: L.card.x + (1 - p) * 200, y: L.card.y + 20 + i * (th7 + gap7), s: 0.9 + 0.1 * p, o: clamp(p * 2) });
+  });
+  popIn(sinInst, t, K(8, "instalar"), { x: L.card.x + L.card.w - 150, y: L.card.y + 20 + 2 * (th7 + gap7) + th7 / 2 - 58, r: -40, s0: 0.2 });
+}
+
+// ================================================================ 8. editar: escribes, resaltas, dibujas y firmas
+const s8 = el("div", "scene", world);
+const T8 = titulo(s8, "VER Y EDITAR", "Escribe, resalta,<br>dibuja y firma", "var(--ver)");
+const C8 = tarjeta(s8, ["visor-0", "visor-1", "visor-2", "visor-3", "visor-4"]);
+const r8 = anillo(C8.c, "#7b5ce5");
+const cur8 = cursor(C8.c);
+const DV = (DATOS.visor || {});
+const HLR = DV.resaltado || [556, 402, 1824, 484], CIF = DV.cifra || [882, 420], FIR = DV.firma || [566, 1272, 934, 1272], SEL = DV.sello || [1222, 1168];
+function upd8(t) {
+  const a = SC.editar.desde, kEd = K(9, "editas"), kEs = K(9, "escribes"), kRe = K(9, "resaltas"), kDi = K(9, "dibujas"), kFi = K(9, "firmas");
+  entraTitulo(T8, t, a); entraTarjeta(C8.c, t, a);
+  estados(C8.shots, t, [[a, 0], [kRe + 0.25, 1], [kDi + 0.3, 2], [kFi + 0.25, 3], [kFi + 0.7, 4]], 0.12);
+  const c = aim(camAt(t, [[a, 1180, 760, 0.6], [kEs - 0.15, 1000, 560, 0.72], [kRe + 0.25, 1080, 470, 0.8], [kDi + 0.45, 1060, 470, 0.8], [kFi - 0.05, 960, 1080, 0.84], [SC.editar.hasta, 1020, 1080, 0.8]]));
+  C8.shots.forEach(s => shoot(s, c));
+  // anillo sobre la herramienta que se usa
+  const tools = [[kEs, 418, 140, 520, 196], [kRe, 846, 140, 980, 196], [kDi, 1042, 140, 1170, 196]];
+  let act = null;
+  for (const tt of tools) if (t >= tt[0] - 0.1) act = tt;
+  if (act && t < kFi) ponAnillo(r8, c, act[1], act[2], act[3], act[4], P(t, act[0] - 0.1, act[0] + 0.2), 6); else r8.style.opacity = 0;
+  // el cursor recorre el resaltado, rodea la cifra y firma
+  let px, py;
+  if (t < kRe) { const p = P(t, kEs, kRe, E.inOut); px = lerp(1300, HLR[0], p); py = lerp(900, HLR[1] + 30, p); }
+  else if (t < kRe + 0.3) { const p = P(t, kRe, kRe + 0.3, E.inOut); px = lerp(HLR[0], HLR[2], p); py = HLR[1] + 30; }
+  else if (t < kDi) { const p = P(t, kRe + 0.3, kDi, E.inOut); px = lerp(HLR[2], CIF[0] + 110, p); py = lerp(HLR[1] + 30, CIF[1], p); }
+  else if (t < kDi + 0.3) { const p = P(t, kDi, kDi + 0.3, E.lin); px = CIF[0] + 110 * Math.cos(p * 6.28); py = CIF[1] - 32 * Math.sin(p * 6.28); }
+  else if (t < kFi) { const p = P(t, kDi + 0.3, kFi, E.inOut); px = lerp(CIF[0] + 110, FIR[0], p); py = lerp(CIF[1], FIR[1], p); }
+  else { const p = P(t, kFi, kFi + 0.25, E.lin); px = lerp(FIR[0], FIR[2], p); py = FIR[1] - 14 * Math.sin(p * 18); }
+  const [cx, cy] = toCard(c, px, py);
+  tf(cur8, { x: cx - 6, y: cy - 4, o: P(t, kEd - 0.2, kEd) * (1 - P(t, kFi + 0.35, kFi + 0.5)) });
+}
+
+// ================================================================ 9. organizar: une, divide, ordena y comprime
+const s9 = el("div", "scene", world);
+const T9 = titulo(s9, "ORGANIZAR Y OPTIMIZAR", "Une, divide,<br>ordena y comprime", "var(--org)");
+const C9 = tarjeta(s9, ["unir", "dividir", "organizar", "comprimir-listo"]);
+const comp = DATOS.comprimir || { antes: 29783088, despues: 607827 };
+const ahorro = Math.round((1 - comp.despues / comp.antes) * 100);
+const badge9 = css(el("div", "abs", s9), { background: "#fff", borderRadius: "30px", boxShadow: "0 24px 60px rgba(22,26,37,.22)", padding: "24px 34px", display: "flex", alignItems: "center", gap: "24px" });
+badge9.innerHTML = `<div><div style="font-size:26px;color:var(--ink3);font-weight:650">Catálogo de cafés</div><div class="g" style="font-size:${R ? 58 : 50}px;white-space:nowrap">${tamano(comp.antes)} <span style="color:var(--ink3)">→</span> <span style="color:var(--opt)">${tamano(comp.despues)}</span></div></div>` +
+  `<div class="g" style="width:150px;height:150px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;font-size:46px">−${ahorro} %</div>`;
+const labels9 = ["Unir", "Dividir", "Organizar", "Comprimir"].map((s, i) => chip(s9, icono(["merge", "split", "organize", "compress"][i], 46) + s, R ? 36 : 32));
+function upd9(t) {
+  const a = SC.organizar.desde, ks = [K(10, "Unes"), K(10, "divides"), K(10, "ordenas"), K(10, "comprimes")];
+  entraTitulo(T9, t, a); entraTarjeta(C9.c, t, a);
+  const cur = estados(C9.shots, t, [[a, 0], [ks[1] - 0.05, 1], [ks[2] - 0.05, 2], [ks[3] - 0.05, 3]], 0.1);
+  const cams = [[1700, 640, 0.66], [1480, 920, 0.6], [1300, 780, 0.6], [1640, 560, 0.72]];
+  C9.shots.forEach((s, i) => {
+    const t0 = i ? ks[i] - 0.05 : a;
+    const k = cams[i];
+    const c = aim([k[0] + (t - t0) * 30, k[1], k[2] * (1 + 0.04 * clamp(t - t0))]);
+    shoot(s, c);
+    const slide = i === cur && i > 0 ? (1 - P(t, t0, t0 + 0.2, E.out5)) * 120 : 0;
+    s.style.transform += ` translateX(${slide / c.s}px)`;
+  });
+  labels9.forEach((n, i) => {
+    const t0 = i ? ks[i] - 0.05 : Math.max(a + 0.3, ks[0] - 0.05);
+    const end = i < 3 ? ks[i + 1] - 0.05 : SC.organizar.hasta + 1;
+    const p = P(t, t0, t0 + 0.3, E.back), q = P(t, end - 0.12, end, E.in);
+    tf(n, { x: L.card.x + 30, y: L.card.y + 30 + (1 - p) * -20, s: 0.8 + 0.2 * p, o: clamp(p * 2) * (1 - q) });
+  });
+  const pb = P(t, ks[3] + 0.15, ks[3] + 0.5, E.back);
+  tf(badge9, { x: W / 2 - badge9.offsetWidth / 2, y: L.card.y + L.card.h - 230 + (1 - pb) * 60, s: 0.7 + 0.3 * pb, o: clamp(pb * 2) });
+}
+
+// ================================================================ 10. ocr: reconoce el texto de un escaneo
+const s10 = el("div", "scene", world);
+const T10 = titulo(s10, "RECONOCER TEXTO (OCR)", "Lo escaneado<br>se vuelve texto", "var(--conv)");
+const C10 = tarjeta(s10, ["ocr", "ocr-revisar"]);
+const scan = css(el("div", "abs", C10.c), { width: L.card.w + "px", height: "8px", background: "#129c80", boxShadow: "0 0 30px 10px rgba(18,156,128,.5)", zIndex: 5 });
+const tinte = css(el("div", "abs", C10.c), { width: L.card.w + "px", background: "rgba(18,156,128,.10)", zIndex: 4 });
+const chB = chip(s10, svgBox(SVG.search("#129c80"), 40) + "Puedes buscarlo", R ? 38 : 34);
+const chC = chip(s10, svgBox(SVG.copy("#129c80"), 40) + "y copiarlo", R ? 38 : 34);
+function upd10(t) {
+  const a = SC.ocr.desde, kEsc = K(11, "escaneado"), kRec = K(11, "Reconoce"), kBus = K(11, "busques"), kCop = K(11, "copies");
+  entraTitulo(T10, t, a); entraTarjeta(C10.c, t, a);
+  const tSw = kRec + 0.95;
+  estados(C10.shots, t, [[a, 0], [tSw, 1]], 0.2);
+  const ca = aim(camAt(t, [[a, 1500, 760, 0.62], [kEsc, 1500, 560, 0.75], [tSw, 1560, 560, 0.85]]));
+  shoot(C10.shots[0], ca);
+  const cb = aim(camAt(t, [[tSw, 1640, 700, 0.66], [kBus, 1640, 760, 0.74], [SC.ocr.hasta, 1500, 760, 0.7]]));
+  shoot(C10.shots[1], cb);
+  const ps = P(t, kRec - 0.05, tSw, E.inOut);
+  const on = t > kRec - 0.05 && t < tSw + 0.15 ? 1 - P(t, tSw, tSw + 0.15) : 0;
+  const y = ps * L.card.h;
+  css(scan, { top: y + "px", opacity: on }); css(tinte, { top: "0px", height: y + "px", opacity: on });
+  popIn(chB, t, kBus - 0.1, { x: 90, y: L.card.y + L.card.h - 210, dy: 30 });
+  popIn(chC, t, kCop - 0.1, { x: 90 + (R ? 440 : 400), y: L.card.y + L.card.h - 210, dy: 30 });
+}
+
+// ================================================================ 11. convertir: PDF a Word, Excel, imágenes y de vuelta
+const s11 = el("div", "scene", world);
+const T11 = titulo(s11, "CONVERTIR", "PDF a Word, Excel<br>e imágenes", "var(--conv)");
+const C11 = tarjeta(s11, ["word", "imagenes", "office"]);
+const fmt = (txt, bg) => `<span class="g" style="font-size:22px;color:#fff;background:${bg};border-radius:8px;padding:2px 9px">${txt}</span>`;
+const fl = svgBox(SVG.arrowRight("#6a7184"), 30);
+const chips11 = [
+  [fmt("PDF", "#d7373a") + fl + fmt("DOCX", "#2e8bd8") + "Word"],
+  [fmt("PDF", "#d7373a") + fl + fmt("XLSX", "#129c80") + "Excel"],
+  [fmt("PDF", "#d7373a") + fl + fmt("JPG", "#e5672f") + "Imágenes"],
+  [fmt("DOCX", "#2e8bd8") + fmt("XLSX", "#129c80") + fl + fmt("PDF", "#d7373a") + "Y de vuelta"],
+].map(([h]) => chip(s11, h, R ? 34 : 30));
+function upd11(t) {
+  const a = SC.convertir.desde, ks = [K(12, "Word"), K(12, "Excel"), K(12, "imágenes"), K(12, "vuelta")];
+  entraTitulo(T11, t, a); entraTarjeta(C11.c, t, a);
+  estados(C11.shots, t, [[a, 0], [ks[2], 1], [ks[3], 2]], 0.14);
+  const cams = [[1500, 820, 0.58], [1480, 820, 0.58], [1240, 820, 0.55]];
+  C11.shots.forEach((s, i) => shoot(s, aim([cams[i][0], cams[i][1], cams[i][2] * (1 + 0.03 * (t - a))])));
+  const pos = R ? [[90, 0], [90, 1], [90, 2], [90, 3]] : [[90, 0], [560, 0], [90, 1], [560, 1]];
+  chips11.forEach((n, i) => {
+    const [x, row] = pos[i];
+    const y = L.card.y + L.card.h - (R ? 380 : 230) + row * (R ? 96 : 96);
+    popIn(n, t, ks[i] - 0.1, { x, y, dy: 26, s0: 0.6 });
+  });
+}
+
+// ================================================================ 12. censurar: cédulas, celulares, correos y cuentas
+const s12 = el("div", "scene", world);
+const T12 = titulo(s12, "CENSURAR DATOS", "Borra datos<br>personales de verdad", "var(--seg)");
+const C12 = tarjeta(s12, ["censurar-0", "censurar-1", "censurar-2"]);
+const r12 = anillo(C12.c, "#4f63e0");
+const CH12 = { "cédulas": [300, 418, 540, 478], "celulares": [300, 498, 560, 558], "correos": [300, 578, 545, 638], "cuentas": [560, 578, 790, 638] };
+const tapado = chip(s12, svgBox(SVG.check("#4f63e0"), 40) + "Lo de debajo se borra", R ? 36 : 32);
+function upd12(t) {
+  const a = SC.censurar.desde, kCon = K(13, "contrato"), kCed = K(13, "cédulas"), kVer = K(13, "verdad");
+  entraTitulo(T12, t, a); entraTarjeta(C12.c, t, a);
+  estados(C12.shots, t, [[a, 0], [kCed - 0.1, 1], [kVer - 0.15, 2]], 0.16);
+  const c = aim(camAt(t, [[a, 1300, 820, 0.52], [kCon, 1240, 800, 0.55], [kCed, 760, 640, 0.86], [K(13, "cuentas") + 0.2, 820, 660, 0.84], [kVer - 0.15, 1700, 820, 0.95], [SC.censurar.hasta, 1700, 860, 1.0]]));
+  C12.shots.forEach(s => shoot(s, c));
+  let act = null;
+  for (const w of ["cédulas", "celulares", "correos", "cuentas"]) if (t >= K(13, w) - 0.08) act = w;
+  if (act && t < kVer - 0.2) { const b = CH12[act]; ponAnillo(r12, c, b[0], b[1], b[2], b[3], P(t, K(13, act) - 0.08, K(13, act) + 0.18), 4); } else r12.style.opacity = 0;
+  popIn(tapado, t, kVer + 0.05, { x: 90, y: L.card.y + L.card.h - 120, dy: 30 });
+}
+
+// ================================================================ 13. mas: formularios, contraseñas, marca de agua, comparar…
+const s13 = el("div", "scene", world);
+const T13 = titulo(s13, "Y ADEMÁS", "26 herramientas<br>en una sola app", "var(--edit)");
+const MAS = [["mas-forms", "forms", "Formularios"], ["mas-protect", "protect", "Contraseñas"], ["mas-watermark", "watermark", "Marca de agua"],
+  ["mas-compare", "compare", "Comparar"], ["mas-batch", "batch", "Por lotes"], ["mas-stamps", "stamps", "Mis sellos"]];
+const cols13 = R ? 2 : 3, mw = R ? 430 : 306, mh13 = R ? 196 : 270, gx = R ? 30 : 21, gy = R ? 22 : 26;   // en el reel, nada pasa de x = 960
+const minis = MAS.map(([src, ic, txt]) => {
+  const n = css(el("div", "abs", s13), { width: mw + "px" });
+  const c = css(el("div", "card", n), { position: "relative", width: mw + "px", height: mh13 + "px", borderRadius: "22px" });
+  const s = img(CAP + src + ".png", "shot", c);
+  shoot(s, aim([1300, 760, R ? 0.34 : 0.3], mw, mh13));
+  const lb = css(el("div", "", n, icono(ic, 44) + `<span>${txt}</span>`), { display: "flex", alignItems: "center", gap: "12px", marginTop: "12px", fontFamily: "Space Grotesk", fontWeight: 700, fontSize: (R ? 34 : 28) + "px" });
+  return n;
+});
+const masChip = chip(s13, "¡y mucho más!", R ? 40 : 34, "#fff", "var(--edit)");
+function upd13(t) {
+  const a = SC.mas.desde, ks = [K(14, "formularios"), K(14, "contraseñas"), K(14, "marcas"), K(14, "comparar"), K(14, "mucho"), K(14, "mucho", 0.18)];
+  entraTitulo(T13, t, a);
+  minis.forEach((n, i) => {
+    const x = L.card.x + (i % cols13) * (mw + gx), y = L.card.y + 10 + Math.floor(i / cols13) * (mh13 + 60 + gy);
+    popIn(n, t, ks[i] - 0.15, { x, y, dy: 60, s0: 0.7, r: (i % 2 ? 4 : -4) });
+  });
+  popIn(masChip, t, K(14, "mucho", 0.3), { x: W / 2 - masChip.offsetWidth / 2, y: L.card.y + (R ? 300 : 290), dy: 40, s0: 0.3, r: -8 });
+}
+
+// ================================================================ 14. paleta: Ctrl K, escribe como hablas
+const s14 = el("div", "scene", world);
+const T14 = titulo(s14, "PALETA CTRL K", "Escribe<br>como hablas", "var(--brand)");
+const C14 = tarjeta(s14, ["inicio", "paleta-0", "paleta-1", "paleta-2", "paleta-3", "paleta-4", "paleta-5", "paleta-6", "unir"]);
+const r14 = anillo(C14.c, "#d7373a");
+const teclas = css(el("div", "abs", s14), { display: "flex", gap: "22px", alignItems: "center" });
+const tecla = s => css(el("div", "g", teclas, s), { fontSize: "64px", background: "#fff", color: "var(--ink)", borderRadius: "22px", padding: "16px 34px", border: "3px solid #e3e6ee", boxShadow: "0 10px 0 #c5cad6, 0 24px 40px rgba(22,26,37,.2)" });
+const kCtrl = tecla("Ctrl"); css(el("div", "g", teclas, "+"), { fontSize: "56px", color: "var(--ink3)" }); const kK = tecla("K");
+function upd14(t) {
+  const a = SC.paleta.desde, kCo = K(15, "Control"), kJu = K(15, "juntar"), kUn = K(15, "Unir");
+  const wj = LINES[14].palabras.find(p => p.w.startsWith("juntar"));
+  entraTitulo(T14, t, a); entraTarjeta(C14.c, t, a);
+  const tPress = kCo + 0.3;
+  const typing = [1, 2, 3, 4, 5, 6].map(i => [kJu - 0.05 + (i - 1) * 0.11, i + 1]);
+  const cur = estados(C14.shots, t, [[a, 0], [tPress, 1], ...typing, [kUn + 0.45, 8]], 0.06);
+  const c = aim(camAt(t, [[a, 1290, 520, 0.62], [tPress, 1290, 560, 0.72], [kJu, 1260, 520, 0.85], [kUn + 0.4, 1260, 520, 0.85]]));
+  C14.shots.slice(0, 8).forEach(s => shoot(s, c));
+  const cu = aim(camAt(t, [[kUn + 0.45, 1500, 700, 0.9], [SC.paleta.hasta, 1700, 700, 0.66]]));
+  shoot(C14.shots[8], cu);
+  ponAnillo(r14, c, 700, 400, 1850, 500, P(t, kUn - 0.1, kUn + 0.2), 6);
+  r14.style.opacity *= t < kUn + 0.45 ? 1 : 0;
+  const pk = P(t, kCo - 0.2, kCo + 0.15, E.back), outK = P(t, tPress + 0.35, tPress + 0.55, E.in);
+  const press = t > tPress - 0.05 && t < tPress + 0.15 ? 8 : 0;
+  tf(teclas, { x: W / 2 - teclas.offsetWidth / 2, y: L.card.y + L.card.h / 2 - 60 + press, s: (0.6 + 0.4 * pk) * (1 - 0.3 * outK), o: clamp(pk * 2) * (1 - outK) });
+}
+
+// ================================================================ 15. instalar: dile a tu IA o descarga el zip
+const s15 = el("div", "scene", world);
+const T15 = titulo(s15, "INSTALARLO ES FÁCIL", "Pídeselo a tu IA<br>o baja el zip", "var(--org)");
+const chat = css(el("div", "card", s15), { left: L.card.x + "px", top: L.card.y + "px", width: L.card.w + "px", padding: "34px 36px", boxSizing: "border-box" });
+chat.innerHTML = `<div style="display:flex;align-items:center;gap:18px;padding-bottom:24px;border-bottom:2px solid #eceef4"><span class="ic" style="width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#7b5ce5,#2e8bd8)">${svgBox(SVG.sparkle("#fff"), 36)}</span><div><div class="g" style="font-size:38px">Tu asistente de IA</div><div style="font-size:26px;color:var(--ink3);font-weight:600">el que ya usas</div></div></div>` +
+  `<div id="msg" style="margin:30px 0 0 auto;max-width:86%;width:max-content;background:var(--ink);color:#fff;border-radius:28px 28px 8px 28px;padding:22px 30px;font-size:${R ? 40 : 36}px;font-weight:600;line-height:1.3;min-height:52px"></div>` +
+  `<div id="resp" style="margin-top:22px;max-width:86%;width:max-content;background:#f1f3f8;border-radius:28px 28px 28px 8px;padding:22px 30px;font-size:${R ? 38 : 34}px;font-weight:600;line-height:1.3;display:flex;gap:14px;align-items:center">${svgBox(SVG.check("#1e7b45"), 40)}<span>Listo: RonyPDF ya está en tu computador.</span></div>`;
+const msg = chat.querySelector("#msg"), resp = chat.querySelector("#resp");
+const MSG = `Instálame RonyPDF desde <span style="color:#FFE14D">${A.repo || "github.com/Rony0218/RonyPDF"}</span>`;
+const MSGTXT = MSG.replace(/<[^>]+>/g, "");
+const zip = css(el("div", "abs", s15), { width: "220px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" });
+zip.innerHTML = `<span style="width:150px;height:188px;display:block">${SVG.zip}</span><span class="g" style="font-size:34px">RonyPDF.zip</span>`;
+const flecha = css(el("div", "abs", s15, SVG.arrowRight("#c5cad6")), { width: "110px", height: "110px" });
+const exe = css(el("div", "abs", s15), { width: "220px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" });
+exe.innerHTML = `${exeIc.replace("width:120px;height:140px", "width:150px;height:176px").replace('width="120" height="140"', 'width="150" height="176"').replace("left:30px;top:30px;width:48px;height:48px", "left:38px;top:38px;width:60px;height:60px")}<span class="g" style="font-size:34px">RonyPDF.exe</span>`;
+const listo = css(el("div", "abs g", s15, svgBox(SVG.check("#fff"), 64) + "<span>¡Listo!</span>"), { display: "flex", alignItems: "center", gap: "18px", fontSize: "64px", color: "#fff", background: "var(--ok)", borderRadius: "999px", padding: "14px 44px 14px 26px", boxShadow: "0 20px 46px rgba(30,123,69,.35)" });
+const repoChip = chip(s15, svgBox(SVG.code("#2e8bd8"), 40) + (A.repo || "github.com/Rony0218/RonyPDF"), R ? 34 : 30);
+function upd15(t) {
+  const a = SC.instalar.desde, kIns = K(16, "instálame"), kGit = K(16, "GitHub"), kZip = K(17, "zip"), kLis = K(17, "listo");
+  entraTitulo(T15, t, a);
+  const pc = P(t, a + 0.04, a + 0.6, E.out5), outC = P(t, LD(17) - 0.2, LD(17) + 0.15, E.in);
+  tf(chat, { y: (1 - pc) * 160 - outC * 120, s: (0.92 + 0.08 * pc) * (1 - 0.1 * outC), o: clamp(pc * 1.8) * (1 - outC) });
+  const n = Math.round(P(t, kIns - 0.1, kGit + 0.35, E.lin) * MSGTXT.length);
+  let html = "", cnt = 0, inTag = false;
+  for (const ch of MSG) { if (ch === "<") inTag = true; if (inTag) { html += ch; if (ch === ">") inTag = false; continue; } if (cnt >= n) break; html += ch; cnt++; }
+  msg.innerHTML = html + (n < MSGTXT.length && Math.floor(t * 3) % 2 ? "▍" : "");
+  msg.style.opacity = t > kIns - 0.2 ? 1 : 0;
+  const pr = P(t, kGit + 0.45, kGit + 0.8, E.back);
+  tf(resp, { s: 0.8 + 0.2 * pr, o: clamp(pr * 2) });
+  // fase del zip
+  const yz = L.card.y + (R ? 190 : 120);
+  popIn(zip, t, kZip - 0.2, { x: W / 2 - 110 - 280, y: yz, dy: 80, s0: 0.4 });
+  const pf = P(t, kZip + 0.15, kZip + 0.45);
+  tf(flecha, { x: W / 2 - 55 + (1 - pf) * -40, y: yz + 50, o: pf });
+  popIn(exe, t, kZip + 0.4, { x: W / 2 - 110 + 280, y: yz, dy: 60, s0: 0.4 });
+  popIn(listo, t, kLis - 0.05, { x: W / 2 - listo.offsetWidth / 2, y: yz + (R ? 330 : 300), s0: 0.3, r: -8 });
+  popIn(repoChip, t, kZip + 0.1, { x: W / 2 - repoChip.offsetWidth / 2, y: yz + (R ? 500 : 440), dy: 20 });
+}
+
+// ================================================================ 16. cierre: sígueme y apoya el proyecto
+const s16 = el("div", "scene", world);
+const perfil = css(el("div", "card", s16), { width: L.card.w + "px", padding: "44px 44px 40px", boxSizing: "border-box", left: L.card.x + "px", top: (R ? 330 : 120) + "px" });
+const links = [[SVG.globe("#161a25"), A.web], [SVG.code("#d7373a"), A.github], [SVG.user("#161a25"), A.linkedin], [SVG.camera("#161a25"), A.instagram]].filter(([, v]) => v);
+perfil.innerHTML = `<div style="display:flex;align-items:center;gap:30px"><div class="g" style="width:150px;height:150px;border-radius:50%;background:linear-gradient(135deg,#ff8a8a,#d7373a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:64px;flex:none">${A.iniciales || "RG"}</div>` +
+  `<div style="flex:1"><div class="g" style="font-size:${R ? 64 : 58}px">${A.nombre || ""}</div><div style="font-size:30px;color:var(--ink2);font-weight:600;margin-top:4px">Construyo herramientas gratis</div></div></div>` +
+  `<div style="display:flex;flex-direction:column;gap:16px;margin-top:32px">${links.map(([ic, v]) => `<div style="display:flex;align-items:center;gap:18px;font-size:${R ? 38 : 34}px;font-weight:650">${svgBox(ic, 44)}${v}</div>`).join("")}</div>` +
+  `<div id="seguir" class="g" style="margin-top:34px;height:96px;border-radius:24px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;gap:16px;font-size:44px"><span id="segtxt">Seguir</span></div>`;
+const seguir = perfil.querySelector("#seguir"), segtxt = perfil.querySelector("#segtxt");
+const corazones = Array.from({ length: 14 }, (_, i) => css(el("div", "abs", s16, SVG.heart), { width: (i % 3 ? 44 : 64) + "px", height: (i % 3 ? 44 : 64) + "px" }));
+const corazon = css(el("div", "abs", s16, SVG.heart), { width: (R ? 330 : 260) + "px", height: (R ? 330 : 260) + "px", filter: "drop-shadow(0 24px 40px rgba(215,55,58,.35))" });
+const apoyaT = css(el("div", "abs title", s16, "Apoya el proyecto"), { width: W + "px", textAlign: "center", fontSize: (R ? 84 : 70) + "px" });
+const enlace = css(el("div", "abs g", s16, (A.apoyo ? A.apoyo : "Enlace en la descripción") + `<span class="ic" style="width:50px;height:50px">${SVG.arrowDown("#fff")}</span>`), { display: "flex", alignItems: "center", gap: "14px", fontSize: (R ? 46 : 40) + "px", color: "#fff", background: "var(--edit)", borderRadius: "999px", padding: "16px 36px", boxShadow: "0 18px 40px rgba(216,67,127,.35)" });
+function upd16(t) {
+  const a = SC.cierre.desde, kSig = K(18, "sígueme"), kCor = K(19, "corazón"), kApo = K(19, "apoyar"), kDes = K(19, "descripción");
+  const pp = P(t, a + 0.02, a + 0.55, E.out5), outP = P(t, kCor - 0.45, kCor - 0.1, E.in);
+  tf(perfil, { y: (1 - pp) * 180 - outP * 200, s: (0.9 + 0.1 * pp) * (1 - 0.15 * outP), o: clamp(pp * 2) * (1 - outP) });
+  const press = t > kSig && t < kSig + 0.14 ? 0.93 : 1;
+  const hecho = t >= kSig + 0.14;
+  seguir.style.transform = `scale(${press})`;
+  seguir.style.background = hecho ? "#eceef4" : "var(--brand)";
+  seguir.style.color = hecho ? "var(--ink)" : "#fff";
+  segtxt.textContent = hecho ? "Siguiendo ✓" : "Seguir";
+  const sy = (R ? 330 : 120) + perfil.offsetHeight - 70;
+  burst(corazones, t, kSig + 0.14, W / 2 - 30, sy, 420, 1.2, 11);
+  const pc = P(t, kCor - 0.2, kCor + 0.35, E.elastic);
+  const beat = t > kCor + 0.35 ? 1 + 0.06 * Math.max(0, Math.sin((t - kCor) * 9)) : 1;
+  const cs = R ? 330 : 260;
+  tf(corazon, { x: W / 2 - cs / 2, y: L.mid - (R ? 470 : 380), s: pc * beat, o: clamp(pc * 3) });
+  const pa = P(t, kApo - 0.15, kApo + 0.3, E.back);
+  tf(apoyaT, { y: L.mid - (R ? 60 : 70) + (1 - pa) * 40, o: clamp(pa * 2) });
+  const pe = P(t, kDes - 0.35, kDes + 0.05, E.back);
+  const bob = t > kDes ? Math.sin((t - kDes) * 8) * 8 : 0;
+  tf(enlace, { x: W / 2 - enlace.offsetWidth / 2, y: L.mid + (R ? 110 : 80) + (1 - pe) * 40 + bob, s: 0.7 + 0.3 * pe, o: clamp(pe * 2) });
+}
+
+// ================================================================ 17. final: ¡que viva el software libre!
+const s17 = el("div", "scene", world);
+const rojo = css(el("div", "abs", s17), { width: W + "px", height: H + "px", background: "radial-gradient(circle at 50% 40%, #e2494c, #b42a2d 75%)" });
+const viva = css(el("div", "abs title", s17), { left: "60px", width: (W - 120) + "px", textAlign: "center", color: "#fff", fontSize: (R ? 150 : 124) + "px", lineHeight: 0.98 });
+const VIVA = ["¡Que", "viva", "el", "software", "libre!"];
+viva.innerHTML = VIVA.map((w, i) => `<span style="display:inline-block">${w}</span>${i === 1 || i === 3 ? "<br>" : " "}`).join("");
+const vivaW = [...viva.querySelectorAll("span")];
+const recuerda = css(el("div", "abs g", s17, "Y recuerda…"), { width: W + "px", textAlign: "center", fontSize: (R ? 70 : 60) + "px", color: "rgba(255,255,255,.85)" });
+const confeti2 = Array.from({ length: 34 }, (_, i) => css(el("div", "abs", s17), { width: (i % 3 ? 22 : 30) + "px", height: (i % 3 ? 22 : 12) + "px", borderRadius: i % 2 ? "50%" : "5px", background: ["#FFE14D", "#ffffff", "#9fd0f7", "#36b89b", "#ffc2d9", "#c9bcff"][i % 6] }));
+const fin = css(el("div", "abs", s17), { width: W + "px", display: "flex", flexDirection: "column", alignItems: "center", gap: "18px" });
+fin.innerHTML = `<div style="display:flex;align-items:center;gap:22px"><img src="${IC}logo.png" style="width:110px;height:110px;filter:drop-shadow(0 10px 20px rgba(0,0,0,.25))"><span class="title" style="font-size:92px;color:#fff">RonyPDF <span style="font-size:60px;background:#fff;color:#b42a2d;border-radius:16px;padding:0 16px;vertical-align:middle">${A.version || "2.0"}</span></span></div>` +
+  `<div class="g" style="font-size:40px;color:rgba(255,255,255,.9)">Gratis · Código abierto · Sin internet</div>` +
+  `<div class="g" style="font-size:38px;color:#161a25;background:#fff;border-radius:999px;padding:12px 32px;margin-top:10px">${A.repo || ""}</div>`;
+function upd17(t) {
+  const a = SC.final.desde, kRec = K(20, "recuerda"), kViv = K(20, "viva"), kLib = K(20, "libre");
+  const pr = P(t, a, a + 0.35);
+  rojo.style.opacity = pr;
+  const ws = LINES[19].palabras;
+  const tw = VIVA.map((w, i) => { const hit = ws.find(p => p.w.replace(/[¡!]/g, "").toLowerCase() === w.replace(/[¡!]/g, "").toLowerCase()); return hit ? hit.a : kViv; });
+  const pre = P(t, kRec - 0.2, kRec + 0.15, E.back), preOut = P(t, tw[0] - 0.25, tw[0], E.in);
+  tf(recuerda, { y: L.mid - 120 + (1 - pre) * 30, o: clamp(pre * 2) * (1 - preOut) });
+  const outV = P(t, LH(20) + 0.55, LH(20) + 0.85, E.in);
+  css(viva, { top: (L.mid - (R ? 420 : 330)) + "px" });
+  vivaW.forEach((w, i) => { const p = P(t, tw[i] - 0.06, tw[i] + 0.22, E.back); tf(w, { y: (1 - p) * 60 - outV * 140, s: (1.6 - 0.6 * p), o: clamp(p * 3) * (1 - outV) }); });
+  const sh = t > kLib && t < kLib + 0.3 ? Math.sin((t - kLib) * 70) * 10 * (1 - (t - kLib) / 0.3) : 0;
+  viva.style.transform = `translateX(${sh}px)`;
+  burst(confeti2, t, kLib + 0.05, W / 2, L.mid - 200, 700, 1.7, 21);
+  const pf = P(t, LH(20) + 0.7, LH(20) + 1.15, E.back);
+  css(fin, { top: (L.mid - (R ? 260 : 220)) + "px" });
+  tf(fin, { y: (1 - pf) * 60, s: 0.85 + 0.15 * pf, o: clamp(pf * 2) });
+}
+
+// ================================================================ subtítulos (palabra por palabra, con las marcas de Whisper)
+const sub = css(el("div", "", stage), { zIndex: 25, maxWidth: L.subW + "px", fontSize: L.subSize + "px" });
+sub.id = "sub";
+let subActual = -1, subSpans = [];
+function updSub(t) {
+  let i = -1;
+  for (let j = 0; j < SUBS.length; j++) if (t >= SUBS[j].desde && t < SUBS[j].hasta) { i = j; break; }
+  // en el remate, la frase gigante ya es el subtítulo (cada palabra entra cuando suena)
+  if (i >= 0 && SUBS[i].linea === 20 && t >= K(20, "viva", -0.25)) i = -1;
+  if (i !== subActual) {
+    subActual = i;
+    if (i >= 0) { sub.innerHTML = SUBS[i].palabras.map(p => `<span>${p.w}</span>`).join(""); subSpans = [...sub.children]; }
+    else { sub.innerHTML = ""; subSpans = []; }
+  }
+  if (i < 0) { sub.style.opacity = 0; return; }
+  const S = SUBS[i];
+  S.palabras.forEach((p, k) => {
+    const sig = k + 1 < S.palabras.length ? S.palabras[k + 1].a : Math.max(p.b, p.a + 0.25);
+    const on = t >= p.a - 0.02 && t < sig - 0.02;
+    const dicha = t >= p.a - 0.02;
+    const sp = subSpans[k];
+    sp.className = on ? "on" : "";
+    sp.style.opacity = dicha ? 1 : 0.42;
+    const pop = on ? 1 + 0.08 * Math.max(0, 1 - (t - p.a) / 0.14) : 1;
+    sp.style.transform = `scale(${pop})`;
+  });
+  const pin = P(t, S.desde, S.desde + 0.12, E.out);
+  const w = sub.offsetWidth, h = sub.offsetHeight;
+  tf(sub, { x: W / 2 - w / 2, y: L.subY - h / 2 + (1 - pin) * 14, s: 0.96 + 0.04 * pin, o: pin });
+}
+
+// ================================================================ reloj
+const ESC = [["nube", s1, upd1], ["licencia", s2, upd2], ["pirata", s3, upd3], ["era", s4, upd4], ["tokens", s5, upd5],
+  ["offline", s6, upd6], ["gratis", s7, upd7], ["editar", s8, upd8], ["organizar", s9, upd9], ["ocr", s10, upd10],
+  ["convertir", s11, upd11], ["censurar", s12, upd12], ["mas", s13, upd13], ["paleta", s14, upd14], ["instalar", s15, upd15],
+  ["cierre", s16, upd16], ["final", s17, upd17]];
+const CORTES = ES.escenas.slice(1).map(e => e.desde);
+function seek(t) {
+  t = clamp(t, 0, DUR - 1e-4);
+  const cur = ES.escenas.find(e => t >= e.desde && t < e.hasta) || ES.escenas[ES.escenas.length - 1];
+  const oscuro = OSCURAS.has(cur.id) && !(cur.id === "tokens" && t >= REV);
+  bgDark.style.opacity = oscuro ? 1 : 0;
+  const acc = ACC[cur.id];
+  css(glowA, { background: `radial-gradient(circle, ${rgba(acc, oscuro ? .30 : .16)} 0%, ${rgba(acc, 0)} 62%)`, transform: `translate(${-300 + Math.sin(t * 0.31) * 160}px,${-360 + Math.cos(t * 0.23) * 180}px)` });
+  css(glowB, { background: `radial-gradient(circle, ${rgba(oscuro ? "#4f63e0" : "#161a25", oscuro ? .22 : .07)} 0%, rgba(0,0,0,0) 60%)`, transform: `translate(${W - 640 + Math.cos(t * 0.27) * 140}px,${H - 760 + Math.sin(t * 0.21) * 160}px)` });
+  dots.style.backgroundImage = `radial-gradient(${oscuro ? "rgba(255,255,255,.07)" : "rgba(22,26,37,.07)"} 1.7px, transparent 1.8px)`;
+  bar.style.width = (t / DUR * W) + "px";
+  // marca arriba en las escenas claras de funciones
+  const bIn = P(t, SC.offline.desde + 0.1, SC.offline.desde + 0.5), bOut = P(t, SC.cierre.desde - 0.2, SC.cierre.desde);
+  tf(brand, { y: (1 - bIn) * -20, o: bIn * (1 - bOut) });
+  // temblor en los golpes
+  let sx = 0, sy = 0;
+  const golpe = (t0, amp, d) => { if (t > t0 && t < t0 + d) { const k = 1 - (t - t0) / d; sx += Math.sin((t - t0) * 95) * amp * k; sy += Math.cos((t - t0) * 77) * amp * k; } };
+  golpe(REV, 16, 0.4); golpe(K(3, "pirata"), 10, 0.35); golpe(K(1, "confidenciales"), 6, 0.25);
+  world.style.transform = `translate(${sx}px,${sy}px)`;
+  for (const [id, root, upd] of ESC) {
+    const sc = SC[id];
+    const on = t >= sc.desde - 1e-3 && t < sc.hasta + 1e-3;
+    root.style.display = on ? "block" : "none";
+    if (on) upd(t);
+  }
+  // cortinilla de color en cada corte (en el gancho, un destello corto); en la revelación, destello blanco
+  let wp = -1, wc = "#fff";
+  for (let i = 0; i < CORTES.length; i++) {
+    const c = CORTES[i], id = ES.escenas[i + 1].id;
+    if (t > c - 0.2 && t < c + 0.2 && !["licencia", "pirata", "offline"].includes(id)) { wp = P(t, c - 0.2, c + 0.2, E.inOut); wc = ACC[id]; }
+  }
+  if (wp >= 0) { wipe.style.display = "block"; wipe.style.background = wc; wipe.style.transform = `translateX(${lerp(W + 60, -W * 1.95, wp)}px) skewX(-14deg)`; }
+  else wipe.style.display = "none";
+  let fo = 0;
+  for (const c of [SC.licencia.desde, SC.pirata.desde]) if (t > c - 0.04 && t < c + 0.16) fo = Math.max(fo, 0.55 * (1 - P(t, c - 0.04, c + 0.16)));
+  if (t >= REV && t < REV + 0.4) fo = Math.max(fo, 0.85 * (1 - P(t, REV, REV + 0.4)));   // destello, sin cuadro en blanco
+  if (t >= SC.offline.desde && t < SC.offline.desde + 0.25) fo = Math.max(fo, 0.5 * (1 - P(t, SC.offline.desde, SC.offline.desde + 0.25)));
+  flash.style.opacity = fo;
+  updSub(t);
+}
+
+// ================================================================ portada del reel (imagen fija)
+function portada() {
+  for (const [, root] of ESC) root.style.display = "none";
+  bgDark.style.opacity = 0; bar.style.display = "none"; sub.style.display = "none"; wipe.style.display = "none";
+  css(glowA, { background: `radial-gradient(circle, rgba(215,55,58,.20) 0%, rgba(215,55,58,0) 62%)`, transform: "translate(-260px,-200px)" });
+  css(glowB, { background: `radial-gradient(circle, rgba(79,99,224,.16) 0%, rgba(0,0,0,0) 60%)`, transform: `translate(${W - 700}px,${H - 900}px)` });
+  dots.style.backgroundImage = "radial-gradient(rgba(22,26,37,.07) 1.7px, transparent 1.8px)";
+  tf(brand, { o: 0 });
+  const p = css(el("div", "abs", stage), { width: W + "px", height: H + "px", zIndex: 40 });
+  const top = R ? 300 : 70;
+  p.innerHTML = `<div style="position:absolute;left:0;width:${W}px;top:${top}px;display:flex;flex-direction:column;align-items:center;gap:26px">` +
+    `<div style="display:flex;align-items:center;gap:22px"><img src="${IC}logo.png" style="width:120px;height:120px;filter:drop-shadow(0 16px 30px rgba(215,55,58,.35))"><span class="title" style="font-size:96px">Rony<span style="color:var(--brand)">PDF</span></span><span class="g" style="font-size:60px;color:#fff;background:var(--ink);border-radius:16px;padding:2px 18px">${A.version || "2.0"}</span></div>` +
+    `<div class="title" style="font-size:${R ? 128 : 104}px;text-align:center;margin-top:30px">Tus PDF,<br><span style="background:var(--hl);border-radius:20px;padding:0 18px">sin internet</span></div>` +
+    `<div class="g" style="font-size:44px;color:var(--ink2);margin-top:6px">Gratis · Código abierto · Portátil</div></div>`;
+  const cw = R ? 940 : 900, ch = R ? 640 : 520;
+  const c = css(el("div", "card", p), { left: ((W - cw) / 2) + "px", top: (R ? 930 : 700) + "px", width: cw + "px", height: ch + "px", transform: "rotate(-3deg)" });
+  const s = img(CAP + "censurar-2.png", "shot", c);
+  const sello = css(el("div", "abs g", p, "26 herramientas"), { left: (R ? 640 : 680) + "px", top: (R ? 880 : 660) + "px", fontSize: "52px", color: "#fff", background: "var(--ok)", borderRadius: "999px", padding: "12px 34px", transform: "rotate(8deg)", boxShadow: "0 16px 34px rgba(30,123,69,.35)", zIndex: 2 });
+  return s.decode().then(() => shoot(s, aim([1180, 800, 0.62], cw, ch)));
+}
+
+const ready = Promise.all([document.fonts.load('700 40px "Space Grotesk"'), document.fonts.load('600 40px "Space Grotesk"'), document.fonts.ready,
+  ...IMGS.map(i => i.decode().catch(() => console.error("No cargó " + i.src)))])
+  .then(() => (PORTADA ? portada() : seek(0))).then(() => true);
+window.TL = { ready, seek, duration: DUR, width: W, height: H };
+
+// ---------------------------------------------------------------- vista previa en el navegador
+if (!RENDER && !PORTADA) {
+  const fit = () => { const s = Math.min((innerHeight - 60) / H, (innerWidth - 20) / W); stage.style.transform = `scale(${s})`; stage.style.marginBottom = `${-(1 - s) * H}px`; stage.style.marginRight = `${-(1 - s) * W}px`; };
+  addEventListener("resize", fit); fit();
+  const ui = document.getElementById("ui");
+  const range = el("input", "", ui); range.type = "range"; range.min = 0; range.max = DUR; range.step = 0.01;
+  const lab = el("span", "", ui);
+  let t0 = performance.now(), playing = true, cur = 0;
+  range.oninput = () => { cur = +range.value; t0 = performance.now() - cur * 1000; seek(cur); };
+  addEventListener("keydown", e => {
+    if (e.code === "Space") { playing = !playing; t0 = performance.now() - cur * 1000; }
+    if (e.code === "ArrowRight" || e.code === "ArrowLeft") { cur = clamp(cur + (e.code === "ArrowRight" ? 1 : -1), 0, DUR); t0 = performance.now() - cur * 1000; seek(cur); }
+  });
+  ready.then(() => {
+    const loop = now => {
+      if (playing) { cur = ((now - t0) / 1000) % DUR; seek(cur); range.value = cur; }
+      lab.textContent = cur.toFixed(2) + " s · " + F;
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+}
+</script>
+</body>
+</html>

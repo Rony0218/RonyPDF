@@ -1,0 +1,1472 @@
+[
+ {
+  "texto": "¿Todavía le subes tus documentos confidenciales a páginas web como I Love PDF?",
+  "archivo": "l01.wav",
+  "dur": 5.15,
+  "oido": "¿Todavía le subes tus documentos confidenciales a páginas web como ilovepdf?",
+  "parecido": 1.0,
+  "tono_st": 3.914,
+  "energia_db": 6.713,
+  "expresividad": 5.928,
+  "tomas": 4,
+  "exactas": 3,
+  "semilla": 1002,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "¿Todavía",
+    "a": 0.0,
+    "b": 0.42
+   },
+   {
+    "p": "le",
+    "a": 0.42,
+    "b": 0.58
+   },
+   {
+    "p": "subes",
+    "a": 0.58,
+    "b": 0.86
+   },
+   {
+    "p": "tus",
+    "a": 0.86,
+    "b": 1.02
+   },
+   {
+    "p": "documentos",
+    "a": 1.02,
+    "b": 1.56
+   },
+   {
+    "p": "confidenciales",
+    "a": 1.56,
+    "b": 2.4
+   },
+   {
+    "p": "a",
+    "a": 2.4,
+    "b": 2.58
+   },
+   {
+    "p": "páginas",
+    "a": 2.58,
+    "b": 3.1
+   },
+   {
+    "p": "web",
+    "a": 3.1,
+    "b": 3.34
+   },
+   {
+    "p": "como",
+    "a": 3.34,
+    "b": 3.64
+   },
+   {
+    "p": "ilovepdf?",
+    "a": 3.64,
+    "b": 5.12
+   }
+  ]
+ },
+ {
+  "texto": "¿O pagas licencias que se comen tu presupuesto?",
+  "archivo": "l02.wav",
+  "dur": 2.43,
+  "oido": "¿O pagas licencias que se comen tu presupuesto?",
+  "parecido": 1.0,
+  "tono_st": 3.654,
+  "energia_db": 6.149,
+  "expresividad": 5.499,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 2000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "¿O",
+    "a": 0.0,
+    "b": 0.18
+   },
+   {
+    "p": "pagas",
+    "a": 0.18,
+    "b": 0.52
+   },
+   {
+    "p": "licencias",
+    "a": 0.52,
+    "b": 1.02
+   },
+   {
+    "p": "que",
+    "a": 1.02,
+    "b": 1.16
+   },
+   {
+    "p": "se",
+    "a": 1.16,
+    "b": 1.28
+   },
+   {
+    "p": "comen",
+    "a": 1.28,
+    "b": 1.52
+   },
+   {
+    "p": "tu",
+    "a": 1.52,
+    "b": 1.66
+   },
+   {
+    "p": "presupuesto?",
+    "a": 1.66,
+    "b": 2.32
+   }
+  ]
+ },
+ {
+  "texto": "¿O peor aún... todavía instalas software pirata?",
+  "archivo": "l03.wav",
+  "dur": 3.42,
+  "oido": "O peor aún, ¿todavía instalas software pirata?",
+  "parecido": 1.0,
+  "tono_st": 4.24,
+  "energia_db": 6.934,
+  "expresividad": 6.32,
+  "tomas": 4,
+  "exactas": 3,
+  "semilla": 3001,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "O",
+    "a": 0.0,
+    "b": 0.14
+   },
+   {
+    "p": "peor",
+    "a": 0.14,
+    "b": 0.48
+   },
+   {
+    "p": "aún,",
+    "a": 0.48,
+    "b": 1.14
+   },
+   {
+    "p": "¿todavía",
+    "a": 1.14,
+    "b": 1.76
+   },
+   {
+    "p": "instalas",
+    "a": 1.76,
+    "b": 2.3
+   },
+   {
+    "p": "software",
+    "a": 2.3,
+    "b": 2.68
+   },
+   {
+    "p": "pirata?",
+    "a": 2.68,
+    "b": 3.34
+   }
+  ]
+ },
+ {
+  "texto": "Pues en la era de la inteligencia artificial... eso ya no es necesario.",
+  "archivo": "l04.wav",
+  "dur": 4.29,
+  "oido": "Pues en la era de la inteligencia artificial, eso ya no es necesario.",
+  "parecido": 1.0,
+  "tono_st": 4.594,
+  "energia_db": 5.986,
+  "expresividad": 6.39,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 4001,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Pues",
+    "a": 0.0,
+    "b": 0.18
+   },
+   {
+    "p": "en",
+    "a": 0.18,
+    "b": 0.38
+   },
+   {
+    "p": "la",
+    "a": 0.38,
+    "b": 0.5
+   },
+   {
+    "p": "era",
+    "a": 0.5,
+    "b": 0.7
+   },
+   {
+    "p": "de",
+    "a": 0.7,
+    "b": 0.88
+   },
+   {
+    "p": "la",
+    "a": 0.88,
+    "b": 0.98
+   },
+   {
+    "p": "inteligencia",
+    "a": 0.98,
+    "b": 1.68
+   },
+   {
+    "p": "artificial,",
+    "a": 1.68,
+    "b": 2.48
+   },
+   {
+    "p": "eso",
+    "a": 2.48,
+    "b": 3.08
+   },
+   {
+    "p": "ya",
+    "a": 3.08,
+    "b": 3.26
+   },
+   {
+    "p": "no",
+    "a": 3.26,
+    "b": 3.42
+   },
+   {
+    "p": "es",
+    "a": 3.42,
+    "b": 3.6
+   },
+   {
+    "p": "necesario.",
+    "a": 3.6,
+    "b": 4.26
+   }
+  ]
+ },
+ {
+  "texto": "Te presento mi primer proyecto gratis, lanzado al público.",
+  "archivo": "l05.wav",
+  "dur": 3.54,
+  "oido": "Te presento mi primer proyecto gratis, lanzado al público.",
+  "parecido": 1.0,
+  "tono_st": 4.878,
+  "energia_db": 7.322,
+  "expresividad": 7.075,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 5003,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Te",
+    "a": 0.0,
+    "b": 0.12
+   },
+   {
+    "p": "presento",
+    "a": 0.12,
+    "b": 0.62
+   },
+   {
+    "p": "mi",
+    "a": 0.62,
+    "b": 0.74
+   },
+   {
+    "p": "primer",
+    "a": 0.74,
+    "b": 1.04
+   },
+   {
+    "p": "proyecto",
+    "a": 1.04,
+    "b": 1.52
+   },
+   {
+    "p": "gratis,",
+    "a": 1.52,
+    "b": 2.12
+   },
+   {
+    "p": "lanzado",
+    "a": 2.12,
+    "b": 2.74
+   },
+   {
+    "p": "al",
+    "a": 2.74,
+    "b": 2.88
+   },
+   {
+    "p": "público.",
+    "a": 2.88,
+    "b": 3.46
+   }
+  ]
+ },
+ {
+  "texto": "Después de muchas horas iterando... y más de mil millones de tokens... creé RonyPDF.",
+  "archivo": "l06.wav",
+  "dur": 5.91,
+  "oido": "Después de muchas horas iterando y más de mil millones de tokens, creé Rony PDF.",
+  "parecido": 1.0,
+  "tono_st": 4.365,
+  "energia_db": 7.164,
+  "expresividad": 6.514,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 6000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Después",
+    "a": 0.0,
+    "b": 0.36
+   },
+   {
+    "p": "de",
+    "a": 0.36,
+    "b": 0.58
+   },
+   {
+    "p": "muchas",
+    "a": 0.58,
+    "b": 0.9
+   },
+   {
+    "p": "horas",
+    "a": 0.9,
+    "b": 1.24
+   },
+   {
+    "p": "iterando",
+    "a": 1.24,
+    "b": 1.78
+   },
+   {
+    "p": "y",
+    "a": 1.78,
+    "b": 2.4
+   },
+   {
+    "p": "más",
+    "a": 2.4,
+    "b": 2.62
+   },
+   {
+    "p": "de",
+    "a": 2.62,
+    "b": 2.76
+   },
+   {
+    "p": "mil",
+    "a": 2.76,
+    "b": 3.04
+   },
+   {
+    "p": "millones",
+    "a": 3.04,
+    "b": 3.44
+   },
+   {
+    "p": "de",
+    "a": 3.44,
+    "b": 3.66
+   },
+   {
+    "p": "tokens,",
+    "a": 3.66,
+    "b": 4.42
+   },
+   {
+    "p": "creé",
+    "a": 4.42,
+    "b": 5.04
+   },
+   {
+    "p": "Rony",
+    "a": 5.04,
+    "b": 5.4
+   },
+   {
+    "p": "PDF.",
+    "a": 5.4,
+    "b": 5.7
+   }
+  ]
+ },
+ {
+  "texto": "Una app para tus PDF que funciona sin internet: tus archivos nunca salen de tu computador.",
+  "archivo": "l07.wav",
+  "dur": 5.67,
+  "oido": "Una app para tus PDF que funciona sin internet. Tus archivos nunca salen de tu computador.",
+  "parecido": 1.0,
+  "tono_st": 4.898,
+  "energia_db": 6.176,
+  "expresividad": 6.751,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 7000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Una",
+    "a": 0.0,
+    "b": 0.24
+   },
+   {
+    "p": "app",
+    "a": 0.24,
+    "b": 0.46
+   },
+   {
+    "p": "para",
+    "a": 0.46,
+    "b": 0.72
+   },
+   {
+    "p": "tus",
+    "a": 0.72,
+    "b": 0.94
+   },
+   {
+    "p": "PDF",
+    "a": 0.94,
+    "b": 1.28
+   },
+   {
+    "p": "que",
+    "a": 1.28,
+    "b": 1.62
+   },
+   {
+    "p": "funciona",
+    "a": 1.62,
+    "b": 2.02
+   },
+   {
+    "p": "sin",
+    "a": 2.02,
+    "b": 2.28
+   },
+   {
+    "p": "internet.",
+    "a": 2.28,
+    "b": 2.94
+   },
+   {
+    "p": "Tus",
+    "a": 3.2,
+    "b": 3.4
+   },
+   {
+    "p": "archivos",
+    "a": 3.4,
+    "b": 3.86
+   },
+   {
+    "p": "nunca",
+    "a": 3.86,
+    "b": 4.28
+   },
+   {
+    "p": "salen",
+    "a": 4.28,
+    "b": 4.7
+   },
+   {
+    "p": "de",
+    "a": 4.7,
+    "b": 4.8
+   },
+   {
+    "p": "tu",
+    "a": 4.8,
+    "b": 4.94
+   },
+   {
+    "p": "computador.",
+    "a": 4.94,
+    "b": 5.64
+   }
+  ]
+ },
+ {
+  "texto": "Es gratis, de código abierto... y portátil: un solo archivo, sin instalar nada.",
+  "archivo": "l08.wav",
+  "dur": 5.86,
+  "oido": "Es gratis de código abierto y portátil. Un solo archivo sin instalar nada.",
+  "parecido": 1.0,
+  "tono_st": 5.163,
+  "energia_db": 6.938,
+  "expresividad": 7.244,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 8001,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Es",
+    "a": 0.0,
+    "b": 0.22
+   },
+   {
+    "p": "gratis",
+    "a": 0.22,
+    "b": 0.74
+   },
+   {
+    "p": "de",
+    "a": 0.74,
+    "b": 0.92
+   },
+   {
+    "p": "código",
+    "a": 0.92,
+    "b": 1.26
+   },
+   {
+    "p": "abierto",
+    "a": 1.26,
+    "b": 1.8
+   },
+   {
+    "p": "y",
+    "a": 1.8,
+    "b": 2.26
+   },
+   {
+    "p": "portátil.",
+    "a": 2.26,
+    "b": 3.1
+   },
+   {
+    "p": "Un",
+    "a": 3.1,
+    "b": 3.52
+   },
+   {
+    "p": "solo",
+    "a": 3.52,
+    "b": 3.82
+   },
+   {
+    "p": "archivo",
+    "a": 3.82,
+    "b": 4.28
+   },
+   {
+    "p": "sin",
+    "a": 4.28,
+    "b": 4.78
+   },
+   {
+    "p": "instalar",
+    "a": 4.78,
+    "b": 5.24
+   },
+   {
+    "p": "nada.",
+    "a": 5.24,
+    "b": 5.84
+   }
+  ]
+ },
+ {
+  "texto": "Abres un PDF y lo editas: escribes, resaltas, dibujas... y firmas.",
+  "archivo": "l09.wav",
+  "dur": 5.17,
+  "oido": "Abres un PDF y lo editas, escribes, resaltas, dibujas y firmas.",
+  "parecido": 1.0,
+  "tono_st": 5.179,
+  "energia_db": 7.3,
+  "expresividad": 7.369,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 9003,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Abres",
+    "a": 0.0,
+    "b": 0.38
+   },
+   {
+    "p": "un",
+    "a": 0.38,
+    "b": 0.54
+   },
+   {
+    "p": "PDF",
+    "a": 0.54,
+    "b": 0.94
+   },
+   {
+    "p": "y",
+    "a": 0.94,
+    "b": 1.26
+   },
+   {
+    "p": "lo",
+    "a": 1.26,
+    "b": 1.4
+   },
+   {
+    "p": "editas,",
+    "a": 1.4,
+    "b": 2.1
+   },
+   {
+    "p": "escribes,",
+    "a": 2.1,
+    "b": 2.92
+   },
+   {
+    "p": "resaltas,",
+    "a": 2.92,
+    "b": 3.66
+   },
+   {
+    "p": "dibujas",
+    "a": 3.66,
+    "b": 4.16
+   },
+   {
+    "p": "y",
+    "a": 4.16,
+    "b": 4.52
+   },
+   {
+    "p": "firmas.",
+    "a": 4.52,
+    "b": 5.14
+   }
+  ]
+ },
+ {
+  "texto": "Unes, divides, ordenas páginas... y comprimes.",
+  "archivo": "l10.wav",
+  "dur": 3.41,
+  "oido": "Unes, divides, ordenas páginas y comprimes.",
+  "parecido": 1.0,
+  "tono_st": 4.574,
+  "energia_db": 7.832,
+  "expresividad": 6.924,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 10000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Unes,",
+    "a": 0.0,
+    "b": 0.82
+   },
+   {
+    "p": "divides,",
+    "a": 0.82,
+    "b": 1.54
+   },
+   {
+    "p": "ordenas",
+    "a": 1.54,
+    "b": 1.86
+   },
+   {
+    "p": "páginas",
+    "a": 1.86,
+    "b": 2.44
+   },
+   {
+    "p": "y",
+    "a": 2.44,
+    "b": 2.74
+   },
+   {
+    "p": "comprimes.",
+    "a": 2.74,
+    "b": 3.38
+   }
+  ]
+ },
+ {
+  "texto": "¿Un documento escaneado? Reconoce el texto... para que lo busques y lo copies.",
+  "archivo": "l11.wav",
+  "dur": 5.04,
+  "oido": "Un documento escaneado reconoce el texto para que lo busques y lo copies.",
+  "parecido": 1.0,
+  "tono_st": 6.315,
+  "energia_db": 6.976,
+  "expresividad": 8.408,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 11002,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Un",
+    "a": 0.0,
+    "b": 0.18
+   },
+   {
+    "p": "documento",
+    "a": 0.18,
+    "b": 0.7
+   },
+   {
+    "p": "escaneado",
+    "a": 0.7,
+    "b": 1.26
+   },
+   {
+    "p": "reconoce",
+    "a": 1.26,
+    "b": 2.14
+   },
+   {
+    "p": "el",
+    "a": 2.14,
+    "b": 2.28
+   },
+   {
+    "p": "texto",
+    "a": 2.28,
+    "b": 2.68
+   },
+   {
+    "p": "para",
+    "a": 2.68,
+    "b": 3.22
+   },
+   {
+    "p": "que",
+    "a": 3.22,
+    "b": 3.36
+   },
+   {
+    "p": "lo",
+    "a": 3.36,
+    "b": 3.46
+   },
+   {
+    "p": "busques",
+    "a": 3.46,
+    "b": 3.9
+   },
+   {
+    "p": "y",
+    "a": 3.9,
+    "b": 4.38
+   },
+   {
+    "p": "lo",
+    "a": 4.38,
+    "b": 4.56
+   },
+   {
+    "p": "copies.",
+    "a": 4.56,
+    "b": 5.02
+   }
+  ]
+ },
+ {
+  "texto": "Pasa de PDF a Word, a Excel o a imágenes... y de vuelta a PDF.",
+  "archivo": "l12.wav",
+  "dur": 4.41,
+  "oido": "Pasa de PDF a Word, a Excel o a Imágenes y devuelta a PDF.",
+  "parecido": 1.0,
+  "tono_st": 5.621,
+  "energia_db": 6.258,
+  "expresividad": 7.498,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 12000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Pasa",
+    "a": 0.0,
+    "b": 0.3
+   },
+   {
+    "p": "de",
+    "a": 0.3,
+    "b": 0.44
+   },
+   {
+    "p": "PDF",
+    "a": 0.44,
+    "b": 0.82
+   },
+   {
+    "p": "a",
+    "a": 0.82,
+    "b": 1.1
+   },
+   {
+    "p": "Word,",
+    "a": 1.1,
+    "b": 1.58
+   },
+   {
+    "p": "a",
+    "a": 1.58,
+    "b": 1.66
+   },
+   {
+    "p": "Excel",
+    "a": 1.66,
+    "b": 2.0
+   },
+   {
+    "p": "o",
+    "a": 2.0,
+    "b": 2.28
+   },
+   {
+    "p": "a",
+    "a": 2.28,
+    "b": 2.4
+   },
+   {
+    "p": "Imágenes",
+    "a": 2.4,
+    "b": 2.92
+   },
+   {
+    "p": "y",
+    "a": 2.92,
+    "b": 3.26
+   },
+   {
+    "p": "devuelta",
+    "a": 3.26,
+    "b": 3.72
+   },
+   {
+    "p": "a",
+    "a": 3.72,
+    "b": 3.84
+   },
+   {
+    "p": "PDF.",
+    "a": 3.84,
+    "b": 4.38
+   }
+  ]
+ },
+ {
+  "texto": "¿Vas a compartir un contrato? Censura cédulas, celulares, correos y cuentas... y se borran de verdad.",
+  "archivo": "l13.wav",
+  "dur": 6.58,
+  "oido": "¿Vas a compartir un contrato? Censura cédulas, celulares, correos y cuentas, y se borran de verdad.",
+  "parecido": 1.0,
+  "tono_st": 4.11,
+  "energia_db": 6.644,
+  "expresividad": 6.103,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 13003,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "¿Vas",
+    "a": 0.0,
+    "b": 0.3
+   },
+   {
+    "p": "a",
+    "a": 0.3,
+    "b": 0.4
+   },
+   {
+    "p": "compartir",
+    "a": 0.4,
+    "b": 0.8
+   },
+   {
+    "p": "un",
+    "a": 0.8,
+    "b": 1.0
+   },
+   {
+    "p": "contrato?",
+    "a": 1.0,
+    "b": 1.7
+   },
+   {
+    "p": "Censura",
+    "a": 1.96,
+    "b": 2.46
+   },
+   {
+    "p": "cédulas,",
+    "a": 2.46,
+    "b": 3.14
+   },
+   {
+    "p": "celulares,",
+    "a": 3.14,
+    "b": 3.92
+   },
+   {
+    "p": "correos",
+    "a": 3.92,
+    "b": 4.44
+   },
+   {
+    "p": "y",
+    "a": 4.44,
+    "b": 4.62
+   },
+   {
+    "p": "cuentas,",
+    "a": 4.62,
+    "b": 5.24
+   },
+   {
+    "p": "y",
+    "a": 5.24,
+    "b": 5.5
+   },
+   {
+    "p": "se",
+    "a": 5.5,
+    "b": 5.66
+   },
+   {
+    "p": "borran",
+    "a": 5.66,
+    "b": 5.98
+   },
+   {
+    "p": "de",
+    "a": 5.98,
+    "b": 6.14
+   },
+   {
+    "p": "verdad.",
+    "a": 6.14,
+    "b": 6.56
+   }
+  ]
+ },
+ {
+  "texto": "Y además: formularios, contraseñas, marcas de agua, comparar versiones... ¡y mucho más!",
+  "archivo": "l14.wav",
+  "dur": 5.43,
+  "oido": "Y además, formularios, contraseñas, marcas de agua, comparar versiones y mucho más.",
+  "parecido": 1.0,
+  "tono_st": 4.322,
+  "energia_db": 6.631,
+  "expresividad": 6.312,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 14000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Y",
+    "a": 0.0,
+    "b": 0.14
+   },
+   {
+    "p": "además,",
+    "a": 0.14,
+    "b": 0.88
+   },
+   {
+    "p": "formularios,",
+    "a": 0.88,
+    "b": 1.68
+   },
+   {
+    "p": "contraseñas,",
+    "a": 1.68,
+    "b": 2.5
+   },
+   {
+    "p": "marcas",
+    "a": 2.5,
+    "b": 2.84
+   },
+   {
+    "p": "de",
+    "a": 2.84,
+    "b": 2.94
+   },
+   {
+    "p": "agua,",
+    "a": 2.94,
+    "b": 3.32
+   },
+   {
+    "p": "comparar",
+    "a": 3.32,
+    "b": 3.72
+   },
+   {
+    "p": "versiones",
+    "a": 3.72,
+    "b": 4.3
+   },
+   {
+    "p": "y",
+    "a": 4.3,
+    "b": 4.64
+   },
+   {
+    "p": "mucho",
+    "a": 4.64,
+    "b": 4.9
+   },
+   {
+    "p": "más.",
+    "a": 4.9,
+    "b": 5.4
+   }
+  ]
+ },
+ {
+  "texto": "¿No encuentras algo? Presiona Control K y escribe como hablas: juntar... y te lleva a Unir PDF.",
+  "archivo": "l15.wav",
+  "dur": 6.9,
+  "oido": "¿No encuentras algo? Presiona Control-K y escribe como hablas. Juntar. Y te lleva a unir PDF.",
+  "parecido": 1.0,
+  "tono_st": 4.742,
+  "energia_db": 7.265,
+  "expresividad": 6.922,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 15003,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "¿No",
+    "a": 0.0,
+    "b": 0.24
+   },
+   {
+    "p": "encuentras",
+    "a": 0.24,
+    "b": 0.76
+   },
+   {
+    "p": "algo?",
+    "a": 0.76,
+    "b": 1.28
+   },
+   {
+    "p": "Presiona",
+    "a": 1.28,
+    "b": 1.9
+   },
+   {
+    "p": "Control",
+    "a": 1.9,
+    "b": 2.3
+   },
+   {
+    "p": "-K",
+    "a": 2.3,
+    "b": 2.64
+   },
+   {
+    "p": "y",
+    "a": 2.64,
+    "b": 2.94
+   },
+   {
+    "p": "escribe",
+    "a": 2.94,
+    "b": 3.38
+   },
+   {
+    "p": "como",
+    "a": 3.38,
+    "b": 3.66
+   },
+   {
+    "p": "hablas.",
+    "a": 3.66,
+    "b": 4.26
+   },
+   {
+    "p": "Juntar.",
+    "a": 4.5,
+    "b": 5.1
+   },
+   {
+    "p": "Y",
+    "a": 5.1,
+    "b": 5.34
+   },
+   {
+    "p": "te",
+    "a": 5.34,
+    "b": 5.46
+   },
+   {
+    "p": "lleva",
+    "a": 5.46,
+    "b": 5.72
+   },
+   {
+    "p": "a",
+    "a": 5.72,
+    "b": 5.88
+   },
+   {
+    "p": "unir",
+    "a": 5.88,
+    "b": 6.16
+   },
+   {
+    "p": "PDF.",
+    "a": 6.16,
+    "b": 6.88
+   }
+  ]
+ },
+ {
+  "texto": "¿Y lo mejor? Solo dile a tu IA: instálame RonyPDF desde GitHub.",
+  "archivo": "l16.wav",
+  "dur": 4.97,
+  "oido": "Y lo mejor, solo dile a tu IA. Instálame Ronnie PDF desde GitHub.",
+  "parecido": 1.0,
+  "tono_st": 4.506,
+  "energia_db": 6.524,
+  "expresividad": 6.464,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 16001,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Y",
+    "a": 0.0,
+    "b": 0.14
+   },
+   {
+    "p": "lo",
+    "a": 0.14,
+    "b": 0.28
+   },
+   {
+    "p": "mejor,",
+    "a": 0.28,
+    "b": 0.88
+   },
+   {
+    "p": "solo",
+    "a": 0.88,
+    "b": 1.26
+   },
+   {
+    "p": "dile",
+    "a": 1.26,
+    "b": 1.52
+   },
+   {
+    "p": "a",
+    "a": 1.52,
+    "b": 1.7
+   },
+   {
+    "p": "tu",
+    "a": 1.7,
+    "b": 1.84
+   },
+   {
+    "p": "IA.",
+    "a": 1.84,
+    "b": 2.32
+   },
+   {
+    "p": "Instálame",
+    "a": 2.6,
+    "b": 3.24
+   },
+   {
+    "p": "Ronnie",
+    "a": 3.24,
+    "b": 3.48
+   },
+   {
+    "p": "PDF",
+    "a": 3.48,
+    "b": 4.04
+   },
+   {
+    "p": "desde",
+    "a": 4.04,
+    "b": 4.42
+   },
+   {
+    "p": "GitHub.",
+    "a": 4.42,
+    "b": 4.94
+   }
+  ]
+ },
+ {
+  "texto": "O descarga el zip... y listo.",
+  "archivo": "l17.wav",
+  "dur": 2.3,
+  "oido": "O descarga el zip y listo.",
+  "parecido": 1.0,
+  "tono_st": 4.521,
+  "energia_db": 7.025,
+  "expresividad": 6.629,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 17002,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "O",
+    "a": 0.0,
+    "b": 0.14
+   },
+   {
+    "p": "descarga",
+    "a": 0.14,
+    "b": 0.7
+   },
+   {
+    "p": "el",
+    "a": 0.7,
+    "b": 0.92
+   },
+   {
+    "p": "zip",
+    "a": 0.92,
+    "b": 1.26
+   },
+   {
+    "p": "y",
+    "a": 1.26,
+    "b": 1.78
+   },
+   {
+    "p": "listo.",
+    "a": 1.78,
+    "b": 2.28
+   }
+  ]
+ },
+ {
+  "texto": "Para más cosas como esta... ¡sígueme!",
+  "archivo": "l18.wav",
+  "dur": 2.72,
+  "oido": "para más cosas como esta. ¡Sígueme!",
+  "parecido": 1.0,
+  "tono_st": 6.377,
+  "energia_db": 6.745,
+  "expresividad": 8.4,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 18002,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "para",
+    "a": 0.0,
+    "b": 0.42
+   },
+   {
+    "p": "más",
+    "a": 0.42,
+    "b": 0.66
+   },
+   {
+    "p": "cosas",
+    "a": 0.66,
+    "b": 1.0
+   },
+   {
+    "p": "como",
+    "a": 1.0,
+    "b": 1.28
+   },
+   {
+    "p": "esta.",
+    "a": 1.28,
+    "b": 1.82
+   },
+   {
+    "p": "¡Sígueme!",
+    "a": 1.82,
+    "b": 2.64
+   }
+  ]
+ },
+ {
+  "texto": "Y si tienes el corazón gigante y quieres apoyar el proyecto, mira el enlace en la descripción.",
+  "archivo": "l19.wav",
+  "dur": 5.38,
+  "oido": "Y si tienes el corazón gigante y quieres apoyar el proyecto, mira el enlace en la descripción.",
+  "parecido": 1.0,
+  "tono_st": 4.0,
+  "energia_db": 6.418,
+  "expresividad": 5.925,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 19000,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Y",
+    "a": 0.0,
+    "b": 0.14
+   },
+   {
+    "p": "si",
+    "a": 0.14,
+    "b": 0.32
+   },
+   {
+    "p": "tienes",
+    "a": 0.32,
+    "b": 0.62
+   },
+   {
+    "p": "el",
+    "a": 0.62,
+    "b": 0.8
+   },
+   {
+    "p": "corazón",
+    "a": 0.8,
+    "b": 1.12
+   },
+   {
+    "p": "gigante",
+    "a": 1.12,
+    "b": 1.66
+   },
+   {
+    "p": "y",
+    "a": 1.66,
+    "b": 1.8
+   },
+   {
+    "p": "quieres",
+    "a": 1.8,
+    "b": 2.1
+   },
+   {
+    "p": "apoyar",
+    "a": 2.1,
+    "b": 2.58
+   },
+   {
+    "p": "el",
+    "a": 2.58,
+    "b": 2.68
+   },
+   {
+    "p": "proyecto,",
+    "a": 2.68,
+    "b": 3.4
+   },
+   {
+    "p": "mira",
+    "a": 3.4,
+    "b": 3.8
+   },
+   {
+    "p": "el",
+    "a": 3.8,
+    "b": 3.96
+   },
+   {
+    "p": "enlace",
+    "a": 3.96,
+    "b": 4.36
+   },
+   {
+    "p": "en",
+    "a": 4.36,
+    "b": 4.52
+   },
+   {
+    "p": "la",
+    "a": 4.52,
+    "b": 4.62
+   },
+   {
+    "p": "descripción.",
+    "a": 4.62,
+    "b": 5.36
+   }
+  ]
+ },
+ {
+  "texto": "Y recuerda... ¡que viva el software libre!",
+  "archivo": "l20.wav",
+  "dur": 2.76,
+  "oido": "Y recuerda que viva el software libre.",
+  "parecido": 1.0,
+  "tono_st": 4.499,
+  "energia_db": 6.475,
+  "expresividad": 6.442,
+  "tomas": 4,
+  "exactas": 4,
+  "semilla": 20001,
+  "sr": 24000,
+  "palabras": [
+   {
+    "p": "Y",
+    "a": 0.0,
+    "b": 0.16
+   },
+   {
+    "p": "recuerda",
+    "a": 0.16,
+    "b": 0.78
+   },
+   {
+    "p": "que",
+    "a": 0.78,
+    "b": 1.38
+   },
+   {
+    "p": "viva",
+    "a": 1.38,
+    "b": 1.68
+   },
+   {
+    "p": "el",
+    "a": 1.68,
+    "b": 1.8
+   },
+   {
+    "p": "software",
+    "a": 1.8,
+    "b": 2.16
+   },
+   {
+    "p": "libre.",
+    "a": 2.16,
+    "b": 2.74
+   }
+  ]
+ }
+]

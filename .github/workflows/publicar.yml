@@ -1,0 +1,65 @@
+name: Publicar versión
+
+# Al subir una etiqueta vX.Y.Z se corren las pruebas, se compila RonyPDF.exe en los servidores de GitHub y se
+# publica la versión con:
+#   - el ejecutable y su suma SHA-256 (SHA256SUMS.txt);
+#   - una atestación de procedencia firmada con Sigstore, que prueba que el .exe salió de este repositorio y de
+#     este flujo, sin pasar por ningún computador personal. Se comprueba con:
+#       gh attestation verify RonyPDF.exe --repo Rony0218/RonyPDF
+# Las acciones están fijadas por su hash de commit para que nadie pueda cambiarlas por debajo.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    permissions:
+      contents: write      # crear la versión
+      id-token: write      # firmar la atestación
+      attestations: write  # guardar la atestación
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QPA_FONTDIR: C:\Windows\Fonts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Pruebas
+        run: |
+          python -m pip install -r requirements.txt pytest
+          python -m pytest -q
+      - name: Compilar RonyPDF.exe
+        run: powershell -ExecutionPolicy Bypass -File build.ps1
+      - name: Suma SHA-256
+        run: |
+          $sha = (Get-FileHash dist\RonyPDF.exe -Algorithm SHA256).Hash.ToLower()
+          "$sha  RonyPDF.exe" | Out-File -Encoding ascii dist\SHA256SUMS.txt
+          Get-Content dist\SHA256SUMS.txt
+      - name: Atestación de procedencia
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-path: dist/RonyPDF.exe
+          create-storage-record: false
+      - name: Crear la versión con el ejecutable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $sha = (Get-Content dist\SHA256SUMS.txt).Split(" ")[0]
+          $notes = @"
+          Descarga **RonyPDF.exe** y ábrelo: no se instala y funciona sin internet.
+
+          **Comprueba que es el original**
+          - SHA-256: ``$sha`` (en PowerShell: ``Get-FileHash .\RonyPDF.exe``)
+          - Procedencia firmada: ``gh attestation verify RonyPDF.exe --repo $env:GITHUB_REPOSITORY``
+
+          Descárgalo solo desde esta página. Más detalles en [SECURITY.md](https://github.com/$env:GITHUB_REPOSITORY/blob/main/SECURITY.md).
+
+          La primera vez, Windows SmartScreen puede avisar que es una app desconocida (no está firmada con un certificado de pago): «Más información» → «Ejecutar de todas formas».
+          "@
+          gh release create "$env:GITHUB_REF_NAME" dist\RonyPDF.exe dist\SHA256SUMS.txt --verify-tag --title "RonyPDF $env:GITHUB_REF_NAME" --notes "$notes"
