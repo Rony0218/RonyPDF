@@ -56,15 +56,25 @@ jobs:
         run: |
           $zip = Get-Item dist\RonyPDF-*-portable.zip
           $sha = (Get-Content dist\SHA256SUMS.txt)[0].Split(" ")[0]
+          $mb = [math]::Round($zip.Length / 1MB)
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$($zip.Name)"
+          # Primero lo que necesita cualquier persona para descargarlo y abrirlo; lo técnico va al final.
           $notes = @"
-          Descarga **$($zip.Name)**, haz clic derecho → «Extraer todo…» y abre **RonyPDF.exe** dentro de la carpeta RonyPDF. No se instala y funciona sin internet. Para actualizar, extrae la versión nueva encima de la anterior: tus ajustes, firmas y sellos se conservan.
+          ### Descárgalo y ábrelo
 
-          **Comprueba que es el original**
+          1. Descarga **[$($zip.Name)]($url)** ($mb MB). Es el único archivo que necesitas: los de «Source code», más abajo, son el código para programadores, no el programa.
+          2. Clic derecho sobre el zip → **«Extraer todo…»** → «Extraer». Si lo abres con doble clic y ejecutas el programa desde ahí, no arranca.
+          3. En la carpeta **RonyPDF**, doble clic en **RonyPDF.exe**.
+          4. Si sale el aviso azul «Windows protegió su PC»: **«Más información»** → **«Ejecutar de todas formas»**. Sale la primera vez porque la app no tiene un certificado de pago, no porque tenga algo malo.
+
+          ![Los tres pasos: extraer el zip, abrir RonyPDF.exe y, si sale el aviso azul, «Más información» y «Ejecutar de todas formas»](https://github.com/$env:GITHUB_REPOSITORY/raw/main/docs/descarga/pasos.png)
+
+          No se instala y funciona sin internet. **Para actualizar**, extrae la versión nueva encima de la anterior y acepta reemplazar los archivos: tus ajustes, firmas y sellos se conservan.
+
+          ### Para comprobar que es el original (opcional)
+          - Descárgalo solo desde esta página: cada versión se compila en GitHub, no en un computador personal.
           - SHA-256 del zip: ``$sha`` (en PowerShell: ``Get-FileHash .\$($zip.Name)``). El del .exe está en SHA256SUMS.txt.
           - Procedencia firmada: ``gh attestation verify $($zip.Name) --repo $env:GITHUB_REPOSITORY``
-
-          Descárgalo solo desde esta página. Más detalles en [SECURITY.md](https://github.com/$env:GITHUB_REPOSITORY/blob/main/SECURITY.md).
-
-          La primera vez, Windows SmartScreen puede avisar que es una app desconocida (no está firmada con un certificado de pago): «Más información» → «Ejecutar de todas formas».
+          - Más detalles en [SECURITY.md](https://github.com/$env:GITHUB_REPOSITORY/blob/main/SECURITY.md).
           "@
           gh release create "$env:GITHUB_REF_NAME" $zip.FullName dist\SHA256SUMS.txt --verify-tag --title "RonyPDF $env:GITHUB_REF_NAME" --notes "$notes"

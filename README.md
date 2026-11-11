@@ -11,6 +11,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Rony0218/RonyPDF/releases/download/v2.0.1/RonyPDF-2.0.1-portable.zip"><img src="docs/descarga/boton-descargar.png" width="443" alt="Descargar RonyPDF 2.0.1 para Windows"></a><br>
+  <sub>Versión 2.0.1 · zip de 101 MB · <a href="#cómo-abrirlo">cómo abrirlo</a> · <a href="https://github.com/Rony0218/RonyPDF/releases">otras versiones</a></sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/Rony0218/RonyPDF/actions/workflows/pruebas.yml"><img src="https://github.com/Rony0218/RonyPDF/actions/workflows/pruebas.yml/badge.svg" alt="Pruebas"></a>
   <a href="https://github.com/Rony0218/RonyPDF/releases/latest"><img src="https://img.shields.io/github/v/release/Rony0218/RonyPDF?label=descargar&color=D63A3A" alt="Descargar"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-AGPL--3.0-1F2937" alt="Licencia AGPL-3.0"></a>
@@ -20,6 +25,29 @@
 <p align="center">
   <img src="docs/capturas/02-visor.png" width="900" alt="Editor de RonyPDF 2.0 con una cláusula resaltada, la cifra encerrada a mano, una firma y un sello propio">
 </p>
+
+## Cómo abrirlo
+
+No se instala: se descarga, se extrae y se abre. Funciona sin internet y tus archivos nunca salen del equipo.
+
+<p align="center">
+  <img src="docs/descarga/pasos.png" width="900" alt="Tres pasos: clic derecho sobre el zip y «Extraer todo…»; doble clic en RonyPDF.exe dentro de la carpeta RonyPDF; si sale el aviso azul de Windows, «Más información» y «Ejecutar de todas formas»">
+</p>
+
+1. **Descarga el zip** con el botón rojo de arriba. Si el navegador avisa que es un archivo poco común o que «no se
+   descarga con frecuencia», elige **«Conservar»**.
+2. **Extráelo:** clic derecho sobre el zip → **«Extraer todo…»** → «Extraer». Si lo abres con doble clic y ejecutas
+   el programa desde ahí, no arranca.
+3. **Ábrelo:** entra a la carpeta `RonyPDF` y haz doble clic en **`RonyPDF.exe`**. Deja la carpeta `_internal` a su
+   lado: el programa la necesita.
+4. **Si sale el aviso azul** «Windows protegió su PC»: **«Más información»** → **«Ejecutar de todas formas»**. Sale
+   la primera vez porque el programa no tiene un certificado de pago, no porque tenga algo malo.
+
+**Para tenerlo a mano**, crea un acceso directo: clic derecho sobre `RonyPDF.exe` → «Mostrar más opciones» →
+«Enviar a» → **«Escritorio (crear acceso directo)»**. En Windows 10, «Enviar a» aparece directamente en el menú.
+
+¿Algo no funcionó? [Cuéntamelo aquí](https://github.com/Rony0218/RonyPDF/issues/new) (se necesita una cuenta de
+GitHub, que es gratis).
 
 > **In English:** RonyPDF is a free, portable PDF toolkit for Windows (Spanish UI): view and edit (text selection,
 > bookmarks, two-page view, full screen and night mode), comment with your own name and your own stamps (standard
@@ -222,22 +250,14 @@ pregunta la primera vez y antes deja una copia de respaldo. Todas **conservan la
 Los documentos de las capturas son de una empresa ficticia y se generan con `scripts/demo_docs.py`; las capturas
 salen de la interfaz real con `scripts/capturas.py`.
 
-## Descargar
+## Actualizar y comprobar el original
 
-1. Descarga **`RonyPDF-…-portable.zip`** de la [última versión](https://github.com/Rony0218/RonyPDF/releases/latest).
-2. Clic derecho sobre el zip → **«Extraer todo…»**. Desde dentro del zip no funciona.
-3. Abre la carpeta `RonyPDF` y haz doble clic en **`RonyPDF.exe`**. Conserva la carpeta completa: el `.exe` necesita
-   la carpeta `_internal` que está a su lado.
-
-Para actualizar, extrae la versión nueva encima de la anterior y acepta reemplazar los archivos: tus ajustes, firmas,
+Cómo descargarlo y abrirlo está [al principio](#cómo-abrirlo). Para actualizar, extrae la versión nueva encima de la anterior y acepta reemplazar los archivos: tus ajustes, firmas,
 sellos y respaldos se conservan.
 
 > **Descárgalo solo desde la [página de versiones](https://github.com/Rony0218/RonyPDF/releases) de este
 > repositorio.** Cada versión se compila en GitHub, no en un computador personal, y trae su SHA-256 y una atestación
 > de procedencia firmada para comprobar que el archivo es el original: en [SECURITY.md](SECURITY.md) está cómo.
->
-> **Windows SmartScreen** puede avisar que es una aplicación desconocida, porque el ejecutable no está firmado con un
-> certificado de pago: «Más información» → «Ejecutar de todas formas».
 
 La lista de recientes, el estado del menú, la página donde quedaste en cada documento y las preferencias del visor y
 de impresión se guardan en `RonyPDF.json` junto al `.exe` (o en `%APPDATA%\RonyPDF` si esa carpeta no permite
