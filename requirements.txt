@@ -1,2 +1,2 @@
-PySide6-Essentials>=6.6
-pymupdf>=1.24
+PySide6-Essentials==6.12.0
+pymupdf==2.1

@@ -512,10 +512,10 @@ class HomePage(QWidget):
         while self.grid.count():
             self.grid.takeAt(0)
         visibles = [t for t in self.tiles.values() if self.categoria == "todas" or t.cat == self.categoria]
-        for t in self.tiles.values():
-            t.setVisible(t in visibles)
         for k, t in enumerate(visibles):
             self.grid.addWidget(t, k // cols, k % cols)
+        for t in self.tiles.values():          # después de agregarlas: sin padre, mostrarlas crearía ventanas
+            t.setVisible(t in visibles)
         for c in range(6):
             self.grid.setColumnStretch(c, 1 if c < cols else 0)
             self.grid.setColumnMinimumWidth(c, 0)

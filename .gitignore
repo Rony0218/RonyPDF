@@ -14,3 +14,7 @@ video/frames/
 video/snaps/
 video/*.wav
 video/salida/
+
+# Datos de quien usa la app cuando se corre desde el código (registros, firmas, sellos, respaldos…)
+RonyPDF_*/
+RonyPDF_diccionario.txt

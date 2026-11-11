@@ -13,13 +13,13 @@ from typing import Callable, Iterable
 from PySide6.QtCore import (QCoreApplication, QEvent, QObject, QPointF, QRectF, QRunnable, QSize, Qt,
                             QThreadPool, QTimer, QTranslator, QUrl, Signal)
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QFontMetrics, QImage, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QFileDialog, QFrame, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QDialog, QFileDialog, QFrame, QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox,
-                               QProgressDialog, QPushButton, QScrollArea, QSizePolicy,
+                               QProgressBar, QPushButton, QScrollArea, QSizePolicy,
                                QStackedLayout, QStackedWidget, QStyle, QStyledItemDelegate, QToolButton,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import core, tema
+from . import core, diagnostico, tema
 from .art import tile
 from .componentes import (Chip, ChoiceChip, Choices, Count, FileChip, FlowLayout, GlyphTile, Kbd,  # noqa: F401
                           Note, OptionCard, OptionGroup, PdfThumb, Segmented, Step, StepList, Switch, SwitchRow,
@@ -115,10 +115,114 @@ class Task(QRunnable):
         except PermissionError as exc:
             self.signals.failed.emit(f"No hay permiso para escribir el archivo:\n{exc.filename}")
         except Exception as exc:  # noqa: BLE001
-            traceback.print_exc()
+            diagnostico.excepcion("tarea", consola=True)   # al registro (sin consola se perdía) y a la consola
             self.signals.failed.emit(f"Ocurrió un error inesperado:\n{type(exc).__name__}: {exc}")
         else:
             self.signals.done.emit(result)
+
+
+class DialogoProgreso(QDialog):
+    """Cuadro «Procesando» de ``ctx.run_task``: texto, barra (indeterminada mientras el máximo es 0) y «Cancelar».
+
+    Reemplaza a QProgressDialog, cuyo ``setValue`` procesa eventos cuando es modal: dentro de esa llamada podía
+    llegar el fin de la tarea y cerrar y destruir el propio cuadro.  Aquí nada procesa eventos; aparece a los
+    400 ms, también sin porcentaje (QProgressDialog no aparecía si la tarea no avisaba un avance), las tareas
+    cortas no lo muestran y, después de ``terminar()``, todo aviso que llegue se descarta."""
+
+    canceled = Signal()
+    ESPERA_MS = 400
+
+    def __init__(self, texto: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("DialogoProgreso")
+        self.setWindowTitle("Procesando")
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setMinimumWidth(380)
+        self._texto = texto
+        self._terminado = False
+        self._cancelando = False
+        lay = QVBoxLayout(self)
+        # Como QProgressDialog, el cuadro crece solo (_crecer) en vez de que el diseño le cambie el tamaño
+        # mínimo a una ventana visible (en offscreen eso da una advertencia de Qt con cada texto nuevo).
+        lay.setSizeConstraint(lay.SizeConstraint.SetNoConstraint)
+        m = lay.contentsMargins()          # como QProgressDialog: el margen de arriba es parte del área del texto
+        lay.setContentsMargins(m.left(), 0, m.right(), m.bottom())
+        self.etiqueta = QLabel(texto)
+        self.etiqueta.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.etiqueta.setContentsMargins(0, m.bottom() // 2, 0, m.bottom() - m.bottom() // 2)
+        lay.addWidget(self.etiqueta)
+        self.barra = QProgressBar()
+        self.barra.setRange(0, 0)
+        self.barra.setTextVisible(False)
+        lay.addWidget(self.barra)
+        fila = QHBoxLayout()
+        fila.addStretch(1)
+        self.boton = QPushButton("Cancelar")
+        self.boton.clicked.connect(self._cancelar)
+        fila.addWidget(self.boton)
+        lay.addLayout(fila)
+        self._aparecer = QTimer(self)
+        self._aparecer.setSingleShot(True)
+        self._aparecer.setInterval(self.ESPERA_MS)
+        self._aparecer.timeout.connect(self._mostrar)
+
+    def empezar(self) -> None:
+        self._aparecer.start()
+
+    def _mostrar(self) -> None:
+        # Nunca sobre una ventana ya cerrada: si se cerró antes de los 400 ms con la tarea en curso, mostrar el
+        # cuadro después dejaba a RonyPDF abierto sin ninguna ventana (comprobado con una tarea que no suelta el GIL).
+        padre = self.parentWidget()
+        if not self._terminado and (padre is None or padre.window().isVisible()):
+            self.show()
+
+    def avanzar(self, i: int, n: int, msg: str = "") -> None:
+        """Aviso de progreso de la tarea (en el hilo de la interfaz)."""
+        if self._terminado:
+            return
+        if n > 0:
+            if self.barra.maximum() != n:
+                self.barra.setRange(0, n)
+            self.barra.setValue(max(0, min(i, n)))
+        if msg and not self._cancelando:
+            self.etiqueta.setText(f"{self._texto}\n{msg}")
+            self._crecer()
+
+    def _crecer(self) -> None:
+        alto = self.sizeHint().height()
+        if self.isVisible() and alto > self.height():
+            self.resize(self.width(), alto)
+
+    def _cancelar(self) -> None:
+        if self._terminado:
+            return
+        self._cancelando = True
+        self.etiqueta.setText("Cancelando…")
+        self.canceled.emit()
+
+    def reject(self) -> None:          # Esc: igual que «Cancelar» (el cuadro sigue hasta que la tarea se detenga)
+        self._cancelar()
+
+    def closeEvent(self, e):  # noqa: N802
+        # Cerrar el cuadro cancela la tarea y SÍ lo cierra, como QProgressDialog: al salir de la aplicación, Qt
+        # cierra primero la ventana modal y, si se negara a cerrarse, la salida se anularía y RonyPDF quedaría
+        # abierto sin ninguna ventana.
+        self._aparecer.stop()
+        self._cancelar()                       # (no hace nada si la tarea ya terminó)
+        e.accept()                             # no QDialog.closeEvent: llama a reject(), que aquí no cierra
+
+    def terminar(self) -> None:
+        """Fin de la tarea: se oculta y se destruye.  Se puede llamar varias veces."""
+        if self._terminado:
+            return
+        self._terminado = True
+        self._aparecer.stop()
+        activa = self.isVisible() and self.isActiveWindow()
+        self.close()                           # como QProgressDialog (ya terminada, cerrar no cancela nada)
+        padre = self.parentWidget()
+        if activa and padre is not None:       # como hace Windows con la ventana dueña (offscreen no lo hace)
+            padre.window().activateWindow()
+        self.deleteLater()
 
 
 class Context:
@@ -155,65 +259,60 @@ class Context:
         central = win.centralWidget() if win else None
         if central:
             central.setEnabled(False)
-        dlg = QProgressDialog(label, "Cancelar", 0, 0, win)
-        dlg.setWindowTitle("Procesando")
-        dlg.setWindowModality(Qt.WindowModality.WindowModal)
-        dlg.setMinimumDuration(400)
-        dlg.setAutoClose(False)
-        dlg.setAutoReset(False)
-        dlg.setMinimumWidth(380)
+        dlg = DialogoProgreso(label, win)
         task = Task(fn, kwargs)
         self._task = task
+        operacion = f"{diagnostico.nombre_operacion(fn)} · {diagnostico.etiqueta(label)}"
 
         finished = {"yes": False}
 
-        def finish():
+        def finish(como: str):
+            if finished["yes"]:          # una sola vez, aunque llegue más de un aviso de fin
+                return
             finished["yes"] = True
+            diagnostico.evento(f"tarea {como}: {operacion}", memoria=True)
             self.busy = False
             self._task = None
             try:
-                dlg.canceled.disconnect()  # cerrar el diálogo emite «canceled»
-            except (RuntimeError, TypeError):
+                dlg.terminar()
+                if central:
+                    central.setEnabled(True)
+                if win and hasattr(win, "set_status"):
+                    win.set_status("")
+            except RuntimeError:         # la ventana (y con ella el cuadro) se destruyó con la tarea en curso
                 pass
-            dlg.reset()
-            dlg.close()
-            dlg.deleteLater()
-            if central:
-                central.setEnabled(True)
-            if win and hasattr(win, "set_status"):
-                win.set_status("")
             if on_finally:
                 on_finally()
 
-        def on_progress(i, n, msg):
-            if n > 0:
-                dlg.setMaximum(n)
-                dlg.setValue(min(i, n))
-            if msg and not finished["yes"]:
-                dlg.setLabelText(f"{label}\n{msg}")
-
         def on_ok(result):
-            finish()
+            if finished["yes"]:
+                return
+            finish("termina")
             on_done(result)
 
         def on_fail(msg):
-            finish()
+            if finished["yes"]:
+                return
+            finish("falla")
             QMessageBox.warning(win, "No se pudo completar", msg)
 
         def on_cancel():
-            finish()
+            if finished["yes"]:
+                return
+            finish("se cancela")
             if win and hasattr(win, "set_status"):
                 win.set_status("Operación cancelada", 4000)
 
         def request_cancel():
             task.cancel_requested = True
-            dlg.setLabelText("Cancelando…")
 
-        task.signals.progress.connect(on_progress)
+        task.signals.progress.connect(dlg.avanzar)   # el cuadro descarta los avisos que lleguen tras terminar
         task.signals.done.connect(on_ok)
         task.signals.failed.connect(on_fail)
         task.signals.cancelled.connect(on_cancel)
         dlg.canceled.connect(request_cancel)
+        diagnostico.evento(f"tarea inicia: {operacion}", memoria=True)
+        dlg.empezar()
         self._pool.start(task)
 
     def run_silent(self, fn: Callable, al_terminar: Callable[[object], None] | None = None,
@@ -239,20 +338,24 @@ class Context:
 
         task = Task(envuelta, kwargs)
         self._silenciosas.add(task)       # la tarea no se borra sola: hay que conservarla hasta que termine
+        operacion = diagnostico.nombre_operacion(fn)
 
         def terminar(resultado):
             self._silenciosas.discard(task)
+            diagnostico.evento(f"tarea en segundo plano termina: {operacion}")
             if al_terminar is not None:
                 al_terminar(resultado)
 
         def fallar(mensaje):
             self._silenciosas.discard(task)
+            diagnostico.evento(f"tarea en segundo plano no terminó: {operacion}")
             if al_fallar is not None:
                 al_fallar(mensaje)
 
         task.signals.done.connect(terminar)
         task.signals.failed.connect(fallar)
         task.signals.cancelled.connect(lambda: fallar("Se canceló."))
+        diagnostico.evento(f"tarea en segundo plano inicia: {operacion}")
         self._pool.start(task)
         return task
 
@@ -548,9 +651,12 @@ class _ReenviarSoltar(QObject):
         self._vigilados: set[int] = set()
 
     def vigilar(self, w: QWidget) -> None:
-        if id(w) in self._vigilados:
+        k = id(w)
+        if k in self._vigilados:
             return
-        self._vigilados.add(id(w))
+        self._vigilados.add(k)
+        # Al destruirse el widget sale del registro: Python puede darle el mismo id() a otro.
+        w.destroyed.connect(lambda *_: self._vigilados.discard(k))
         w.setAcceptDrops(True)
         w.installEventFilter(self)
 
@@ -1158,12 +1264,12 @@ class ToolPage(QWidget):
         titles.setSpacing(2)
         self.title_lb = label(self.title, "ToolTitle", wrap=True)   # en ventanas angostas baja de renglón
         self.subtitle_lb = label(self.subtitle, "ToolSubtitle", wrap=True)
-        self.subtitle_lb.setVisible(bool(self.subtitle))
         titles.addStretch(1)
         titles.addWidget(self.title_lb)
         titles.addWidget(self.subtitle_lb)
         titles.addStretch(1)
         hl.addLayout(titles, 1)
+        self.subtitle_lb.setVisible(bool(self.subtitle))   # ya con padre: sin él crearía una ventana nativa
         self.header_slot = QHBoxLayout()
         self.header_slot.setSpacing(8)
         hl.addLayout(self.header_slot)

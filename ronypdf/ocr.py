@@ -226,6 +226,16 @@ def _unicharset(blob: bytes) -> list[str]:
     return chars
 
 
+# En el hilo de la precarga (ver ``precargar``), armar el diccionario cede el GIL cada poco: si no, la interfaz,
+# que vuelve a Python en cada evento, queda esperando y se congela mientras tanto.
+_cortesia = threading.local()
+_CEDER_CADA = 4000             # aristas del DAWG (o palabras) entre una pausa y otra
+
+
+def _ceder() -> None:
+    time.sleep(0.001)
+
+
 def _palabras_dawg(blob: bytes, chars: list[str]) -> set[str]:
     """Recorre el DAWG desde el nodo 0 por las aristas que no van hacia atrás."""
     magic, usize = struct.unpack_from("<hi", blob, 0)
@@ -238,6 +248,7 @@ def _palabras_dawg(blob: bytes, chars: list[str]) -> set[str]:
     out: set[str] = set()
     pila = [(0, "")]
     vistos = 0
+    ceder = getattr(_cortesia, "activa", False)
     while pila:
         nodo, prefijo = pila.pop()
         i = nodo
@@ -253,6 +264,8 @@ def _palabras_dawg(blob: bytes, chars: list[str]) -> set[str]:
                 if sig:
                     pila.append((sig, w))
             vistos += 1
+            if ceder and not vistos % _CEDER_CADA:
+                _ceder()
             if banderas & 1 or vistos > 50_000_000:    # 1 = última arista del nodo
                 break
             i += 1
@@ -279,7 +292,13 @@ def _diccionario(idiomas: str, carpeta: str | None) -> frozenset[str]:
     palabras: set[str] = set()
     for lang in dict.fromkeys(idiomas.split("+")):
         palabras |= _palabras_modelo(Path(carpeta) / f"{lang}.traineddata")
-    return frozenset(w.lower() for w in palabras if w.strip())
+    if not getattr(_cortesia, "activa", False):
+        return frozenset(w.lower() for w in palabras if w.strip())
+    lista, out = list(palabras), set()
+    for k in range(0, len(lista), _CEDER_CADA * 5):
+        out.update(w.lower() for w in lista[k:k + _CEDER_CADA * 5] if w.strip())
+        _ceder()
+    return frozenset(out)
 
 
 def diccionario(idiomas: str = "spa+eng") -> frozenset[str]:
@@ -292,9 +311,22 @@ diccionario.cache_info = _diccionario.cache_info      # type: ignore[attr-define
 diccionario.cache_clear = _diccionario.cache_clear    # type: ignore[attr-defined]
 
 
+_precargados: set[str] = set()
+
+
 def precargar(idiomas: str = "spa+eng") -> None:
-    """Carga el diccionario en segundo plano (la primera vez tarda unas décimas de segundo)."""
-    threading.Thread(target=diccionario, args=(idiomas,), daemon=True, name="diccionario-ocr").start()
+    """Carga el diccionario en segundo plano (la primera vez tarda unas décimas de segundo; en un equipo
+    modesto, varios segundos de CPU).  Se pide al entrar a una pantalla de OCR, no al abrir la aplicación:
+    armarlo compite por el GIL con la construcción de la interfaz.  Solo arranca un hilo por idioma."""
+    if idiomas in _precargados:
+        return
+    _precargados.add(idiomas)
+    threading.Thread(target=_precargar, args=(idiomas,), daemon=True, name="diccionario-ocr").start()
+
+
+def _precargar(idiomas: str) -> None:
+    _cortesia.activa = True            # este hilo cede el GIL a cada rato: la interfaz no se congela
+    diccionario(idiomas)
 
 
 # --- diccionario personal ---------------------------------------------------
@@ -1019,6 +1051,7 @@ def renderizar(page: pymupdf.Page, pag: PaginaOcr | None, zoom: float, clip: pym
         destino = pymupdf.Pixmap(pymupdf.csRGB, zona, False)
         destino.clear_with(255)
         destino.copy(pix, zona)
+        pix = None                                 # se suelta antes de limpiar: dos copias completas pesan
         if pag.limpiar_imagen and pag.tabla is not None:
             destino = limpiar_pixmap(destino, pag.tabla)
         destino.set_origin(0, 0)

@@ -479,7 +479,7 @@ class Sidebar(QFrame):
         _k, label, _t, items = sec
         menu = MenuCategoria(self, key, label, items, self.current, self.counts)
         menu.elegida.connect(self.navigate.emit)
-        menu.destroyed.connect(lambda *_: self._sync_checks_seguro())
+        menu.destroyed.connect(lambda *_, m=menu: self._menu_destruido(m))
         self.flyout = menu
         boton = self.rail_buttons.get("sec:" + key)
         if boton is not None:
@@ -532,6 +532,16 @@ class Sidebar(QFrame):
             self.counts.pop(key, None)
         if key in self.items:
             self.items[key].set_count(n)
+
+    def _menu_destruido(self, menu):
+        if self.flyout is menu:            # solo si es el menú que se destruyó (pudo abrirse otro después)
+            self.flyout = None
+        try:
+            visible = self.isVisible()     # al cerrar la aplicación la barra ya no está a la vista (o ya no existe)
+        except RuntimeError:
+            return
+        if visible:
+            self._sync_checks_seguro()
 
     def _sync_checks_seguro(self):
         # El menú flotante puede destruirse al cerrar la app, cuando las entradas del carril ya no existen.

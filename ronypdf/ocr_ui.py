@@ -10,7 +10,6 @@ cuando se muestra.
 
 from __future__ import annotations
 
-from collections import OrderedDict
 from pathlib import Path
 
 import pymupdf
@@ -22,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QFrame, QGraphicsPixmapItem, Q
                                QSizePolicy, QStackedWidget, QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout,
                                QWidget)
 
-from . import core, extensiones, guardado_ui, ocr, tema
+from . import core, extensiones, guardado_ui, memoria, ocr, tema
 from .icons import icon
 from .widgets import (PDF_LOCK, Chip, DropArea, FileChip, FlowLayout, Note, Segmented, ToolPage, ask_open, ask_save,
                       cat_de, ctx, label, show_done, suggest_output)
@@ -292,8 +291,9 @@ class RevisarOcrPage(ToolPage):
         self.deshacer_pila: list[list[tuple[ocr.PalabraOcr, str | None, bool]]] = []
         self.zoom = 1.0
         self._items: dict[int, QGraphicsPolygonItem] = {}
-        self._recortes: OrderedDict = OrderedDict()
-        self._paginas_img: OrderedDict = OrderedDict()
+        # recortes de palabras y páginas enteras (giradas o enderezadas) con presupuesto en bytes
+        self._recortes = memoria.CacheImagenes(24 * memoria.MB, maximo=600)
+        self._paginas_img = memoria.CacheImagenes(32 * memoria.MB, maximo=3)
         self._render_hecho = None
         self._pendientes_pagina: dict[int, int] = {}
         super().__init__()
@@ -518,6 +518,10 @@ class RevisarOcrPage(ToolPage):
         rutas = ask_open(self, False)
         if rutas:
             self.accept_files(rutas)
+
+    def showEvent(self, e):  # noqa: N802
+        super().showEvent(e)
+        ocr.precargar()                 # para las sugerencias; en segundo plano, no al abrir la aplicación
 
     def accept_files(self, paths):
         """Carga un PDF y dice qué se puede revisar (sin diálogos si no hace falta una contraseña)."""
@@ -1030,14 +1034,17 @@ class RevisarOcrPage(ToolPage):
         clave = (self.pagina_actual, round(escala, 3))
         if clave == self._render_hecho:
             return
+        r = self._rect_visible(self.pagina_actual)          # de la caché, sin tocar MuPDF
         if ctx.busy or not PDF_LOCK.acquire(blocking=False):
             self._timer.start()
             return
         try:
             page = self.doc[self.pagina_actual]
-            zoom = min(6.0, escala * self.devicePixelRatioF())
+            # zoom hasta 6, pero sin pasar de MAX_PIXELES: una página grande con zoom alto pediría cientos de MB
+            zoom = memoria.zoom_tope(r.width, r.height, min(6.0, escala * self.devicePixelRatioF()))
             pix = ocr.renderizar(page, self._pag(self.pagina_actual), zoom)
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
+            pix = None                              # sin esperar: así no conviven tres copias de la página
         except Exception:  # noqa: BLE001 — una página que no se puede dibujar no debe tumbar la pantalla
             img = None
         finally:
@@ -1045,11 +1052,13 @@ class RevisarOcrPage(ToolPage):
         sc = self.vista.scene()
         sc.clear()
         self._items.clear()
-        r = self._rect_visible(self.pagina_actual)
         if img is not None:
-            it = QGraphicsPixmapItem(QPixmap.fromImage(img))
+            ancho_img = img.width()
+            pm = QPixmap.fromImage(img)
+            img = None                              # el QPixmap ya tiene su copia
+            it = QGraphicsPixmapItem(pm)
             it.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-            it.setScale(r.width / max(img.width(), 1))
+            it.setScale(r.width / max(ancho_img, 1))
             sc.addItem(it)
         m = self.MARGEN
         sc.setSceneRect(QRectF(-m, -m, r.width + 2 * m, r.height + 2 * m))
@@ -1117,8 +1126,7 @@ class RevisarOcrPage(ToolPage):
             return None
         clave = (id(w), alto, contexto)
         if clave in self._recortes:
-            self._recortes.move_to_end(clave)
-            return self._recortes[clave]
+            return self._recortes.get(clave)
         if ctx.busy or not PDF_LOCK.acquire(blocking=False):
             QTimer.singleShot(300, self.lista.viewport().update)
             return None
@@ -1128,9 +1136,7 @@ class RevisarOcrPage(ToolPage):
             img = None
         finally:
             PDF_LOCK.release()
-        self._recortes[clave] = img
-        while len(self._recortes) > 600:
-            self._recortes.popitem(last=False)
+        self._recortes[clave] = img            # la caché suelta las más viejas (600 o 24 MB, lo que llegue antes)
         return img
 
     def _hacer_recorte(self, pag, w, alto, contexto) -> QImage | None:
@@ -1168,15 +1174,15 @@ class RevisarOcrPage(ToolPage):
         return img
 
     def _pagina_img(self, pag: ocr.PaginaOcr):
-        if pag.indice in self._paginas_img:
-            self._paginas_img.move_to_end(pag.indice)
-            return self._paginas_img[pag.indice]
-        z = 3.0
+        hecha = self._paginas_img.get(pag.indice)
+        if hecha is not None:
+            return hecha
+        r = self._rect_visible(pag.indice)
+        z = memoria.zoom_tope(r.width, r.height, 3.0, memoria.MAX_PIXELES // 2)
         pix = ocr.renderizar(self.doc[pag.indice], pag, z)
         img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
-        self._paginas_img[pag.indice] = (img, z)
-        while len(self._paginas_img) > 3:
-            self._paginas_img.popitem(last=False)
+        pix = None
+        self._paginas_img[pag.indice] = (img, z)   # hasta 3 páginas o 32 MB
         return img, z
 
     # ------------------------------------------------------------------ teclado y tamaño

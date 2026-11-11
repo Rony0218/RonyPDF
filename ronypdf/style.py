@@ -111,6 +111,7 @@ QLabel {{ background: transparent; }}
 #Sidebar QScrollArea, #SidebarBody {{ background: {t['surface']}; }}
 #RailSep {{ background: {t['line']}; border: none; }}
 #Flyout {{ background: {t['surface']}; border: 1px solid {t['line']}; border-radius: 12px; }}
+#AvisoFlotante {{ background: {t['surface']}; border: 1px solid {t['line']}; border-radius: 16px; }}
 #Palette {{ background: {t['surface']}; border: 1px solid {t['line']}; border-radius: 22px; }}
 #PaletteInputRow {{ background: transparent; border: none; border-bottom: 1px solid {t['line']}; }}
 #PaletteFoot {{ background: transparent; border: none; border-top: 1px solid {t['line']}; }}
@@ -365,7 +366,7 @@ QSplitter::handle {{ background: {t['line']}; }}
 QProgressBar {{ border: none; background: {t['surface-sunken']}; border-radius: 3px; max-height: 6px;
     min-height: 6px; text-align: center; color: transparent; }}
 QProgressBar::chunk {{ background: {t['brand']}; border-radius: 3px; }}
-QProgressDialog QProgressBar {{ max-height: 8px; min-height: 8px; }}
+QDialog#DialogoProgreso QProgressBar {{ max-height: 8px; min-height: 8px; }}
 QSlider::groove:horizontal {{ height: 4px; background: {t['surface-sunken']}; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {t['ink']}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: {t['ink']}; width: 16px; height: 16px; margin: -6px 0; border-radius: 8px; }}

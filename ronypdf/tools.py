@@ -2254,9 +2254,12 @@ class OcrPage(ToolPage):
     icon_name = "ocr"
     action_text = "Reconocer texto"
 
-    def build(self):
+    def showEvent(self, e):  # noqa: N802
+        super().showEvent(e)
         from . import ocr as motor
         motor.precargar()                      # el diccionario se carga mientras la persona elige el archivo
+
+    def build(self):
         self.resultados_carpeta = []
         self._ultimas_opciones = None
         self._destino: str | None = None

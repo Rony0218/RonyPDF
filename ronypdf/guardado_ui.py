@@ -497,16 +497,22 @@ class Autoguardado(QObject):
     # ---- enganches
     def _enganchar(self):
         pages = getattr(self.ventana, "pages", {})
-        v = pages.get("viewer")
-        if v is not None:
-            v.canvas.edits_changed.connect(lambda: self._cambio("viewer"))
-            self._vigilar("viewer", v.canvas, v.canvas.viewport())
-        f = pages.get("forms")
-        if f is not None and hasattr(f, "canvas"):
-            self._vigilar("forms", f.canvas, f.canvas.viewport())
-        o = pages.get("organize")
-        if o is not None and hasattr(o, "grid"):
-            self._vigilar("organize", o.grid, o.grid.viewport())
+        for herr in self.HERRAMIENTAS:
+            p = pages.get(herr)                # solo las ya construidas
+            if p is not None:
+                self._enganchar_pagina(herr, p)
+        senal = getattr(self.ventana, "pagina_creada", None)
+        if senal is not None:                  # las demás, cuando se construyan (la primera vez que se abren)
+            senal.connect(self._enganchar_pagina)
+
+    def _enganchar_pagina(self, herr: str, p) -> None:
+        if herr == "viewer":
+            p.canvas.edits_changed.connect(lambda: self._cambio("viewer"))
+            self._vigilar("viewer", p.canvas, p.canvas.viewport())
+        elif herr == "forms" and hasattr(p, "canvas"):
+            self._vigilar("forms", p.canvas, p.canvas.viewport())
+        elif herr == "organize" and hasattr(p, "grid"):
+            self._vigilar("organize", p.grid, p.grid.viewport())
 
     def _vigilar(self, herr: str, widget, viewport) -> None:
         """Cuenta como actividad lo que se haga en el lienzo y en los recuadros que se le pongan encima (el
@@ -699,7 +705,7 @@ class Autoguardado(QObject):
     def _siguiente(self):
         if self.cola and not self.cerrada:
             cola, self.cola = self.cola, []
-            QTimer.singleShot(0, lambda: self.revisar(solo=cola))
+            QTimer.singleShot(0, self, lambda: self.revisar(solo=cola))
 
     def _borrar(self, herr: str):
         self.firmas.pop(herr, None)
@@ -713,20 +719,27 @@ class Autoguardado(QObject):
             self.borrar_luego.add(herr)
         self._borrar(herr)
 
-    def esperar(self, limite: float = 30.0):
+    ESPERA_CIERRE = 30.0      # segundos que el cierre espera a un autoguardado en curso
+
+    def esperar(self, limite: float = 30.0) -> bool:
+        """Espera a que termine el autoguardado en curso.  True si terminó; False si venció el plazo."""
         fin = time.monotonic() + limite
         while self.tarea is not None and time.monotonic() < fin:
             QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
             time.sleep(0.01)
+        return self.tarea is None
 
     def cerrar(self):
-        """Cierre normal de la aplicación: se borra todo lo de esta sesión."""
+        """Cierre normal de la aplicación: se borra todo lo de esta sesión.  Si un autoguardado sigue escribiendo
+        cuando vence la espera, la recuperación se conserva (borrarla mientras se escribe la dejaría a medias):
+        en el próximo arranque se ofrece como trabajo sin guardar."""
         self.cerrada = True
         self.timer.stop()
         self.reintento.stop()
         if self.tarea is not None:
             self.tarea.cancel_requested = True
-            self.esperar()
+            if not self.esperar(self.ESPERA_CIERRE):
+                return
         if self.carpeta is not None:
             guardado.cerrar_sesion(self.carpeta, self.sesion["id"])
 
@@ -913,9 +926,12 @@ def ofrecer_recuperacion(ventana) -> None:
     """Si una sesión anterior terminó de forma inesperada, ofrece recuperar su trabajo.  Si no hay nada, no
     aparece nada."""
     g = getattr(ventana, "_autoguardado", None)
-    trabajos = trabajos_pendientes(g.ajustes if g is not None else None)
+    ajustes = g.ajustes if g is not None else None
+    trabajos = trabajos_pendientes(ajustes)
+    _contar_pendientes(len(trabajos))         # «Respaldo y recuperación» se construye solo cuando se abre
     if trabajos:
         DialogoRecuperar(ventana, trabajos).exec()
+        _contar_pendientes(len(trabajos_pendientes(ajustes)))
 
 
 # --------------------------------------------------------------------------

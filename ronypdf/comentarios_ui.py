@@ -765,7 +765,7 @@ class _Editor(QFrame):
     def eventFilter(self, obj, ev):
         if obj is self.texto and ev.type() == QEvent.Type.FocusOut:
             if ev.reason() not in (Qt.FocusReason.PopupFocusReason, Qt.FocusReason.ActiveWindowFocusReason):
-                QTimer.singleShot(0, self._quizas_terminar)
+                QTimer.singleShot(0, self, self._quizas_terminar)     # se cancela si el editor ya no existe
         return False
 
     def _quizas_terminar(self):
@@ -1982,7 +1982,8 @@ class PanelComentarios(QWidget):
         if self.sel is None:
             self.respuesta_abierta = False
             if antes:                   # la lista no salta al principio después de un cambio
-                QTimer.singleShot(0, lambda: barra.setValue(min(antes, barra.maximum())))
+                # con la barra como contexto: si el panel se destruye antes, Qt cancela la llamada
+                QTimer.singleShot(0, barra, lambda: barra.setValue(min(antes, barra.maximum())))
         self._poner_acciones(desplazar=False)
         self.visor.titulo_panel(CLAVE, f"Comentarios ({total})")
         if self.filtro.activo():

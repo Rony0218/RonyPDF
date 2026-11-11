@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHBoxLayout, QLabel, 
                                QSlider, QStackedWidget, QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout,
                                QWidget)
 
-from . import core, guardado, guardado_ui, tema
+from . import core, guardado, guardado_ui, memoria, tema
 from .icons import icon, pixmap
 from .widgets import (PDF_AND_IMAGES_FILTER, PDF_LOCK, Chip, DropArea, FileChip, ToolPage, ask_open, ask_save,
                       cat_de, collect_paths, ctx, qimage_from_render, show_done, suggest_output)
@@ -227,8 +227,10 @@ class OrganizePage(ToolPage):
 
     def build(self):
         self.sources: list[Source] = []
-        self.thumbs: dict[tuple[int, int], QImage | None] = {}
-        self.rotated: dict[tuple[int, int, int], QImage] = {}
+        # Miniaturas (src, página) y sus versiones giradas (src, página, giro) en una sola caché con presupuesto
+        # en bytes: solo se dibujan las que se ven y unas cuantas alrededor (ver _por_dibujar).
+        self.thumbs = memoria.CacheImagenes(memoria.MINIATURAS)
+        self.rotated = self.thumbs
         self.pending: dict[tuple[int, int], None] = {}
         self.undo_stack: list[list[tuple]] = []
         self.redo_stack: list[list[tuple]] = []
@@ -387,6 +389,7 @@ class OrganizePage(ToolPage):
         self.thumb_size = v
         self.grid.setGridSize(self.cell_size())
         self.grid.doItemsLayout()
+        self._kick()                          # con miniaturas más pequeñas se ven más páginas
 
     def _open_source(self, path: str) -> int | None:
         if not ctx.passwords.ensure(path, self):
@@ -692,39 +695,67 @@ class OrganizePage(ToolPage):
         PagePreview(self, img, title).exec()
 
     # ------------------------------------------------------------------ miniaturas
+    MARGEN = 30              # miniaturas que se adelantan antes y después de las visibles
+
     def thumb(self, src: int, page: int, rot: int) -> QImage | None:
         base = self.thumbs.get((src, page))
         if base is None or not rot:
             return base
         key = (src, page, rot)
-        if key not in self.rotated:
-            self.rotated[key] = base.transformed(QTransform().rotate(rot), Qt.TransformationMode.SmoothTransformation)
-        return self.rotated[key]
+        girada = self.rotated.get(key)
+        if girada is None:
+            girada = base.transformed(QTransform().rotate(rot), Qt.TransformationMode.SmoothTransformation)
+            self.rotated[key] = girada
+        return girada
 
     def _kick(self):
-        if self.pending and not self.timer.isActive():
-            self.timer.start()
+        if self.grid.count() and not self.timer.isActive():
+            self.timer.start()                # si la cuadrícula no se ve, la primera vuelta lo detiene
 
-    def _next_pending(self) -> tuple[int, int]:
+    def showEvent(self, e):  # noqa: N802
+        super().showEvent(e)
+        self._kick()
+
+    def resizeEvent(self, e):  # noqa: N802
+        super().resizeEvent(e)
+        if hasattr(self, "timer"):            # (no antes de terminar de construirse)
+            self._kick()
+
+    def _por_dibujar(self) -> tuple[int, int] | None:
+        """La siguiente página visible (o cercana) sin miniatura al día; None si no queda ninguna."""
+        vp = self.grid.viewport().rect()
+        n = self.grid.count()
         first = self.grid.indexAt(QPoint(20, 20)).row()
-        if first >= 0:
-            for r in range(first, min(first + 80, self.grid.count())):
-                it = self.grid.item(r)
-                key = (it.data(R_SRC), it.data(R_PAGE))
-                if key in self.pending:
-                    return key
-        return next(iter(self.pending))
+        last = self.grid.indexAt(vp.bottomRight() - QPoint(20, 20)).row()
+        first = max(0, first)
+        if last < first:
+            # la última fila puede estar a medias (sin ítem en esa esquina): hasta donde alcance a verse
+            cols = max(1, vp.width() // max(1, self.grid.gridSize().width() or self.thumb_size))
+            filas = max(1, vp.height() // max(1, self.grid.gridSize().height() or self.thumb_size) + 1)
+            last = first + cols * filas
+        for r in memoria.ventana(first, last, n, self.MARGEN):
+            it = self.grid.item(r)
+            src = it.data(R_SRC)
+            if src is None or src < 0:
+                continue
+            key = (src, it.data(R_PAGE))
+            if key in self.pending or key not in self.thumbs:
+                return key
+        return None
 
     def _render_some(self):
-        if not self.pending:
-            self.timer.stop()
+        if not self.grid.count() or not self.grid.isVisible():
+            self.timer.stop()                 # se reanuda al volver a verse (showEvent) o al desplazarse
             return
         if ctx.busy or not PDF_LOCK.acquire(blocking=False):
             return
         try:
             deadline = time.perf_counter() + 0.03
-            while self.pending and time.perf_counter() < deadline:
-                key = self._next_pending()
+            while time.perf_counter() < deadline:
+                key = self._por_dibujar()
+                if key is None:
+                    self.timer.stop()
+                    break
                 self.pending.pop(key, None)
                 try:
                     self.thumbs[key] = qimage_from_render(core.render_page(self._doc(key[0]), key[1], THUMB_PX))

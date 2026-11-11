@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (QAbstractButton, QApplication, QButtonGroup, QCom
 
 from . import art, core, extensiones, tema
 from .componentes import cat_de, repolish
-from . import guardado, guardado_ui, visor_paneles, visor_texto
+from . import guardado, guardado_ui, memoria, visor_paneles, visor_texto
 from .widgets import (IMAGE_FILTER, PDF_LOCK, Chip, ColorButton, DropArea, GlyphTile, Kbd, Note, PdfThumb,
                       ask_open, ask_save, ctx, label, qimage_from_render, show_done, suggest_output, tool_button)
 
@@ -2190,14 +2190,18 @@ class ThumbDelegate(QStyledItemDelegate):
 
 
 class ThumbStrip(QListWidget):
-    """Columna de miniaturas de páginas del visor (se renderizan a medida que se necesitan)."""
+    """Columna de miniaturas de páginas del visor.  Solo se dibujan las que se ven y unas cuantas alrededor
+    (``MARGEN``), y se guardan en una caché con presupuesto en bytes: con un PDF de cientos de páginas la memoria
+    no crece sin límite.  Mientras la columna no se ve, no se dibuja nada."""
+
+    MARGEN = 12              # miniaturas que se adelantan arriba y abajo de las visibles
 
     def __init__(self, canvas: "PdfCanvas"):
         super().__init__()
         self.setObjectName("ThumbList")
         self.canvas = canvas
-        self.images: dict[int, QImage] = {}
-        self.pending: dict[int, None] = {}
+        self.images = memoria.CacheImagenes(memoria.MINIATURAS)    # fila → QImage (None: no se pudo dibujar)
+        self.pending: dict[int, None] = {}       # filas por (volver a) dibujar cuando se vean
         self.setViewMode(QListView.ViewMode.ListMode)
         self.setFlow(QListView.Flow.TopToBottom)
         self.setUniformItemSizes(True)
@@ -2241,25 +2245,48 @@ class ThumbStrip(QListWidget):
         self._kick()
 
     def _kick(self):
-        if self.pending and not self.timer.isActive():
-            self.timer.start()
+        if self.count() and not self.timer.isActive():
+            self.timer.start()                # si la columna no se ve, la primera vuelta lo detiene
+
+    def showEvent(self, e):  # noqa: N802
+        super().showEvent(e)
+        self._kick()
+
+    def resizeEvent(self, e):  # noqa: N802
+        super().resizeEvent(e)
+        if hasattr(self, "timer"):            # (no antes de terminar de construirse)
+            self._kick()
+
+    def _por_dibujar(self) -> int | None:
+        """La siguiente fila visible (o cercana) sin miniatura al día; None si no queda ninguna."""
+        vp = self.viewport().rect()
+        first = self.indexAt(vp.topLeft()).row()
+        last = self.indexAt(vp.bottomLeft()).row()
+        first = max(0, first)
+        if last < 0:
+            last = first + max(1, vp.height() // (THUMB_H + 34))
+        for i in memoria.ventana(first, last, self.count(), self.MARGEN):
+            if i in self.pending or i not in self.images:
+                return i
+        return None
 
     def _render_some(self):
         doc = self.canvas.doc
-        if not self.pending or doc is None:
-            self.timer.stop()
+        if doc is None or not self.isVisible():
+            self.timer.stop()               # se reanuda al volver a verse (showEvent)
             return
         if ctx.busy or not PDF_LOCK.acquire(blocking=False):
             return
         try:
-            first = max(0, self.indexAt(self.viewport().rect().topLeft()).row())
-            order = [i for i in range(first, min(first + 8, self.count())) if i in self.pending]
-            i = order[0] if order else next(iter(self.pending))
+            i = self._por_dibujar()
+            if i is None:
+                self.timer.stop()           # lo visible está al día; desplazarse lo reanuda
+                return
             self.pending.pop(i, None)
             try:
                 self.images[i] = qimage_from_render(core.render_page(doc, i, THUMB_H * 2))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:  # noqa: BLE001 — página dañada: se queda sin miniatura (y no se reintenta)
+                self.images[i] = None
         finally:
             PDF_LOCK.release()
         self.viewport().update()

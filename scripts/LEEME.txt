@@ -1,0 +1,32 @@
+RonyPDF: herramientas PDF portables para Windows
+=================================================
+
+CÓMO ABRIRLO
+1. Si estás viendo esto dentro del zip, primero extrae todo: clic derecho sobre el
+   zip > «Extraer todo…». Desde dentro del zip no funciona.
+2. Abre la carpeta RonyPDF que se creó y haz doble clic en RonyPDF.exe.
+   Conserva la carpeta completa: RonyPDF.exe necesita la carpeta _internal.
+
+No se instala y no necesita internet: tus archivos nunca salen del equipo.
+Si quieres un acceso directo: clic derecho sobre RonyPDF.exe > «Enviar a» >
+«Escritorio (crear acceso directo)».
+
+La primera vez, Windows SmartScreen puede avisar que es una aplicación
+desconocida: «Más información» > «Ejecutar de todas formas».
+
+CÓMO ACTUALIZARLO
+Extrae la versión nueva encima de esta carpeta y acepta reemplazar los archivos.
+Tus ajustes, firmas, sellos y respaldos (RonyPDF.json y las carpetas RonyPDF_...)
+se conservan.
+
+CÓMO COMPROBAR QUE ES EL ORIGINAL
+Descárgalo solo de https://github.com/Rony0218/RonyPDF/releases
+Ahí están la suma SHA-256 de cada archivo y una prueba de procedencia firmada.
+Los detalles están en https://github.com/Rony0218/RonyPDF/blob/main/SECURITY.md
+
+LICENCIA
+RonyPDF es software libre bajo la GNU AGPL-3.0 (archivo LICENSE), con los
+términos adicionales de TERMINOS-ADICIONALES.md. El código fuente está en
+https://github.com/Rony0218/RonyPDF
+
+Hecho por Rony Guerrero - https://ronyguerrero.com

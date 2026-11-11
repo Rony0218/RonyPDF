@@ -445,9 +445,9 @@ class SwitchRow(QWidget):
         self.text_lb = label(text, "SwitchText", wrap=True)
         col.addWidget(self.text_lb)
         self.help_lb = label(help or "", "Help", wrap=True)
-        self.help_lb.setVisible(bool(help))
         col.addWidget(self.help_lb)
         h.addLayout(col, 1)
+        self.help_lb.setVisible(bool(help))      # ya con padre: sin padre, mostrarla crearía una ventana nativa
         self.switch = Switch(checked, cat)
         self.switch.setAccessibleName(text)
         self.switch.toggled.connect(self.toggled)
@@ -696,10 +696,10 @@ class OptionCard(QAbstractButton):
         lay.setSpacing(2)
         self.title_lb = label(title, "OptTitle", wrap=True)
         self.help_lb = label(help or "", "Help", wrap=True)
-        self.help_lb.setVisible(bool(help))
         for lb in (self.title_lb, self.help_lb):
             lb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             lay.addWidget(lb)
+        self.help_lb.setVisible(bool(help))      # ya con padre (ver SwitchRow)
         sp = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         sp.setHeightForWidth(True)
         self.setSizePolicy(sp)
@@ -868,8 +868,8 @@ class FileChip(QFrame):
         self.b_remove.setAccessibleName("Quitar archivo")
         self.b_remove.setCursor(Qt.CursorShape.PointingHandCursor)
         self.b_remove.clicked.connect(self.remove_clicked)
-        self.b_remove.setVisible(removable)
         h.addWidget(self.b_remove)
+        self.b_remove.setVisible(removable)      # ya con padre (ver SwitchRow)
         self._name = ""
         self.max_nombre = 240        # ancho máximo del nombre antes de recortarlo por el medio
         self.set_file(name, meta)
@@ -920,8 +920,8 @@ class Step(QWidget):
             head_box.setSpacing(2)
             head_box.addLayout(self.head)
             head_box.addWidget(self.help_lb)
-            self.help_lb.setVisible(bool(help))
             self.main.addLayout(head_box)
+            self.help_lb.setVisible(bool(help))  # ya con padre (ver SwitchRow)
         else:
             self.title_lb.hide()
             self.help_lb.hide()

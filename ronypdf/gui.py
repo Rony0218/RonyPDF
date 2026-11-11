@@ -7,15 +7,16 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget,
                                QVBoxLayout, QWidget)
 
-from . import APP_NAME, core, extensiones, tema
+from . import APP_NAME, core, diagnostico, extensiones, tema
 from .art import app_icon
 from .home import HomePage
 from .organizer import OrganizePage
+from .pantallas import Pantallas
 from .settings import Settings
 from .paleta import PaletaComandos
 from .sidebar import Sidebar, TopBar
@@ -51,6 +52,8 @@ extensiones.aplicar(PAGE_CLASSES, SECTIONS)   # herramientas de los módulos *_u
 
 
 class MainWindow(QMainWindow):
+    pagina_creada = Signal(str, object)     # (clave, pantalla): una pantalla se construyó (la primera vez que se abre)
+
     def __init__(self):
         super().__init__()
         ctx.window = self
@@ -68,20 +71,16 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout(root)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
+        # Primero el esqueleto dentro de la ventana: cada parte que se le agrega después cambia de padre una sola
+        # vez (con la hoja de estilos, cada cambio de padre vuelve a aplicar el estilo a todo lo que contiene).
+        self.setCentralWidget(root)
 
         self.sidebar = Sidebar(HOME, SECTIONS, ctx.settings)
         self.sidebar.navigate.connect(self.navigate)
         self.stack = QStackedWidget()
-        self.pages: dict[str, QWidget] = {}
-
-        self.home = HomePage(SECTIONS)
-        self.home.navigate.connect(self.navigate)
-        self.home.files_dropped.connect(self.open_files)
-        self.home.buscar.connect(self.abrir_paleta)
-        self._add_page("home", self.home)
-        for _sec, _label, _tile, items in SECTIONS:
-            for key, _title, _t in items:
-                self._add_page(key, PAGE_CLASSES[key]())
+        # Cada pantalla se construye la primera vez que se abre (ver pantallas.py).
+        self.pages = Pantallas(["home"] + [k for _s, _l, _t, items in SECTIONS for k, _x, _a in items],
+                               self._crear_pagina, self._add_page)
 
         self.topbar = TopBar()
         self.topbar.buscar.connect(lambda: self.abrir_paleta(""))
@@ -94,7 +93,12 @@ class MainWindow(QMainWindow):
         dl.addWidget(self.stack, 1)
         h.addWidget(self.sidebar)
         h.addWidget(derecha, 1)
-        self.setCentralWidget(root)
+
+        self.home = HomePage(SECTIONS)
+        self.home.navigate.connect(self.navigate)
+        self.home.files_dropped.connect(self.open_files)
+        self.home.buscar.connect(self.abrir_paleta)
+        self.pages.registrar("home", self.home)
         self.paleta = PaletaComandos(self, self._herramientas_paleta,
                                      lambda: ctx.settings.recent() if ctx.settings else [])
         self.paleta.abrir_herramienta.connect(self.navigate)
@@ -108,9 +112,19 @@ class MainWindow(QMainWindow):
         self.navigate("home")
         extensiones.al_iniciar(self)      # p. ej. ofrecer la recuperación de un trabajo sin guardar
 
+    def _crear_pagina(self, key: str) -> QWidget:
+        visible = self.isVisible()
+        if visible:                                    # la primera vez que se abre puede tardar un momento
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            return PAGE_CLASSES[key]()
+        finally:
+            if visible:
+                QApplication.restoreOverrideCursor()
+
     def _add_page(self, key: str, page: QWidget):
-        self.pages[key] = page
         self.stack.addWidget(page)
+        self.pagina_creada.emit(key, page)
 
     def _herramientas_paleta(self) -> list[tuple[str, str, str, str]]:
         """(clave, título, categoría, glifo) de cada herramienta, en el orden del menú."""
@@ -121,6 +135,7 @@ class MainWindow(QMainWindow):
         self.paleta.abrir(texto or "")
 
     def navigate(self, key: str):
+        diagnostico.evento(f"pantalla: {key}", memoria=True)
         page = self.pages[key]
         self.stack.setCurrentWidget(page)
         self.sidebar.set_current(key)
@@ -184,10 +199,21 @@ class MainWindow(QMainWindow):
         self.pages[key].accept_files(paths)
 
     def closeEvent(self, e):
-        from . import guardado_ui
         if getattr(self, "_cerrando", False):          # ya se está preguntando o guardando para cerrar
             e.ignore()
             return
+        # Desde el comienzo: esperar un guardado, preguntar o autoguardar procesan eventos, y por ahí podría
+        # entrar un segundo cierre mientras el primero sigue a mitad.
+        self._cerrando = True
+        diagnostico.evento("cierre: inicia")
+        try:
+            self._cerrar(e)
+        finally:
+            self._cerrando = False
+        diagnostico.evento("cierre: termina" if e.isAccepted() else "cierre: cancelado")
+
+    def _cerrar(self, e):
+        from . import guardado_ui
         if guardado_ui.guardando():                    # un «Guardar» a mitad: se espera a que termine
             guardado_ui.esperar_guardado()
         if ctx.busy:
@@ -209,26 +235,22 @@ class MainWindow(QMainWindow):
             vistas.add(clave)
             if callable(getattr(page, "has_unsaved", None)) and page.has_unsaved():
                 pendientes.append((clave, page))
-        self._cerrando = True
-        try:
-            for clave, page in pendientes:
-                if not page.has_unsaved():
-                    continue
-                self.navigate(clave)
-                titulo = next((t for _s, _l, _t, items in SECTIONS for k, t, _a in items if k == clave), clave)
-                ruta = getattr(getattr(page, "canvas", None), "path", None) or getattr(page, "path", None)
-                que = f"«{Path(ruta).name}», en «{titulo}»" if ruta else f"«{titulo}»"
-                r = guardado_ui.preguntar_cambios(self, "Cambios sin guardar",
-                                                  f"Tienes cambios sin guardar en {que}. ¿Quieres guardarlos antes "
-                                                  "de salir?")
-                if r == "cancelar":
-                    e.ignore()
-                    return
-                if r == "guardar" and not guardado_ui.guardar_y_esperar(page):
-                    e.ignore()                         # no se pudo (o no se quiso) guardar: no se cierra
-                    return
-        finally:
-            self._cerrando = False
+        for clave, page in pendientes:
+            if not page.has_unsaved():
+                continue
+            self.navigate(clave)
+            titulo = next((t for _s, _l, _t, items in SECTIONS for k, t, _a in items if k == clave), clave)
+            ruta = getattr(getattr(page, "canvas", None), "path", None) or getattr(page, "path", None)
+            que = f"«{Path(ruta).name}», en «{titulo}»" if ruta else f"«{titulo}»"
+            r = guardado_ui.preguntar_cambios(self, "Cambios sin guardar",
+                                              f"Tienes cambios sin guardar en {que}. ¿Quieres guardarlos antes "
+                                              "de salir?")
+            if r == "cancelar":
+                e.ignore()
+                return
+            if r == "guardar" and not guardado_ui.guardar_y_esperar(page):
+                e.ignore()                             # no se pudo (o no se quiso) guardar: no se cierra
+                return
         extensiones.al_cerrar(self)       # cierre aceptado: las extensiones dejan todo en orden
         e.accept()
 
@@ -256,6 +278,7 @@ def _light_palette() -> QPalette:
 
 def _install_excepthook():
     def hook(exc_type, exc, tb):
+        diagnostico.excepcion("interfaz", (exc_type, exc, tb))      # al registro, antes del aviso
         text = "".join(traceback.format_exception(exc_type, exc, tb))
         try:
             sys.__stderr__ and sys.__stderr__.write(text)
@@ -290,11 +313,11 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
     if len(argv) > 1 and argv[1] == "--comprobar-herramientas":
         return comprobar_herramientas(argv[2] if len(argv) > 2 else None)
-    # En el ejecutable sin consola no hay stdout/stderr.
+    # En el ejecutable sin consola no hay stdout/stderr: los errores van al registro de diagnóstico.
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w")
     if sys.stderr is None:
-        sys.stderr = open(os.devnull, "w")
+        sys.stderr = diagnostico.salida_errores()
     if sys.platform == "win32":
         try:
             import ctypes
@@ -314,8 +337,10 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyleSheet(QSS)
     app.setWindowIcon(app_icon())
     _install_excepthook()
+    diagnostico.entorno()
     win = MainWindow()
     win.show()
+    diagnostico.ofrecer_informe(win)    # si la sesión anterior se cerró de golpe: aviso para guardar el informe
     files = [a for a in argv[1:] if os.path.isfile(a)]
     if files:
         win.open_files(files)

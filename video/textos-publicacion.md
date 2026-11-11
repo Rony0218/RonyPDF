@@ -24,7 +24,7 @@ Portada: `salida/portada.png` (en Instagram se sube en «Editar portada» → «
 > → Censurar cédulas, celulares, correos y cuentas
 > → Paleta Ctrl K: escribe «juntar» y te lleva a Unir PDF
 >
-> Es un solo .exe y no se instala. Dile a tu IA «instálame RonyPDF desde github.com/Rony0218/RonyPDF» o descarga
+> No se instala: bajas un zip, lo extraes y listo. Dile a tu IA «instálame RonyPDF desde github.com/Rony0218/RonyPDF» o descarga
 > el zip: el enlace está en mi perfil.
 >
 > Si tienes el corazón gigante y quieres apoyar el proyecto: ENLACE_DE_APOYO
@@ -45,7 +45,7 @@ tiene 152), tres hashtags y la web al final.
 >
 > Reúne 26 herramientas: ver, editar y firmar; unir, dividir y organizar páginas; comprimir; reconocer texto con
 > OCR; convertir entre PDF, Word, Excel e imágenes, y censurar datos personales como cédulas, celulares, correos y
-> cuentas. Es un solo archivo .exe que no necesita instalación.
+> cuentas. Es portátil: se descarga en un zip y no necesita instalación.
 >
 > La construí iterando con inteligencia artificial durante muchas horas: las sesiones del proyecto suman más de mil
 > millones de tokens procesados. La versión 2.0 estrena un rediseño completo de la interfaz.

@@ -119,9 +119,10 @@ def imprimir_desde_visor(visor) -> None:
     win = ctx.window
     if c.doc is None or not c.path or ctx.busy or win is None:
         return
-    page = getattr(win, "pages", {}).get("print")
-    if page is None:
+    pages = getattr(win, "pages", {})
+    if "print" not in pages:
         return
+    page = pages["print"]                      # la construye si todavía no se había abierto
     pagina = c.current_page
     if visor.has_unsaved():
         focus = c.scene().focusItem()

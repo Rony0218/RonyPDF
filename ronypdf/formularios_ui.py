@@ -20,6 +20,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetricsF, QIcon, QImage, QIntValidator, QKeySequence,
                            QPainter, QPainterPath, QPen, QShortcut, QTransform)
@@ -460,6 +461,13 @@ class FormCanvas(QGraphicsView):
         self.render_timer.setSingleShot(True)
         self.render_timer.setInterval(30)
         self.render_timer.timeout.connect(self.render_visible)
+        # El recuadro de «destacar» es del lienzo: su temporizador se cancela al limpiar la escena (un
+        # temporizador suelto podía tocar el recuadro ya destruido al cambiar de documento).
+        self._destacado: QGraphicsRectItem | None = None
+        self._destacado_timer = QTimer(self)
+        self._destacado_timer.setSingleShot(True)
+        self._destacado_timer.setInterval(1400)
+        self._destacado_timer.timeout.connect(self._quitar_destacado)
         self.verticalScrollBar().valueChanged.connect(self._scrolled)
         self.horizontalScrollBar().valueChanged.connect(self._scrolled)
         self.scene().focusItemChanged.connect(self._foco_cambio)
@@ -496,6 +504,7 @@ class FormCanvas(QGraphicsView):
         self.schedule_render()
 
     def limpiar(self):
+        self._quitar_destacado()
         self.scene().clear()
         self.pages, self.por_pagina = [], {}
         self.proxies, self.editores, self.zonas = {}, {}, {}
@@ -870,6 +879,7 @@ class FormCanvas(QGraphicsView):
         return True
 
     def destacar(self, rect: QRectF):
+        self._quitar_destacado()
         it = QGraphicsRectItem(rect.adjusted(-3, -3, 3, 3))
         pen = QPen(QColor(_pag("cat-ver")), 2)
         pen.setCosmetic(True)
@@ -877,7 +887,14 @@ class FormCanvas(QGraphicsView):
         it.setBrush(Qt.BrushStyle.NoBrush)
         it.setZValue(Z_DESTACADO)
         self.scene().addItem(it)
-        QTimer.singleShot(1400, lambda: it.scene() is not None and it.scene().removeItem(it))
+        self._destacado = it
+        self._destacado_timer.start()
+
+    def _quitar_destacado(self):
+        self._destacado_timer.stop()
+        it, self._destacado = self._destacado, None
+        if it is not None and shiboken6.isValid(it) and it.scene() is not None:
+            it.scene().removeItem(it)
 
     def event(self, e):
         if e.type() == QEvent.Type.KeyPress and e.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab) \

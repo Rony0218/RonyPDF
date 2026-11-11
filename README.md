@@ -7,7 +7,7 @@
 <p align="center">
   <b>Une, divide, organiza, comprime, edita, comenta y sella, rellena y firma, censura, compara, imprime y reconoce el texto de tus PDF.</b><br>
   También convierte Word, Excel y PowerPoint a PDF, y PDF a Word y Excel, y aplica varios pasos seguidos a carpetas enteras.<br>
-  Un solo <code>.exe</code> portable para Windows: no se instala, no necesita internet y tus archivos nunca salen del equipo.
+  Portable para Windows: se descomprime y se abre, no se instala, no necesita internet y tus archivos nunca salen del equipo.
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 > booklet, poster, guided duplex), redact personal data with Colombian patterns and remove hidden data, convert
 > Word/Excel/PowerPoint to PDF and PDF to Word/Excel, run chained batch actions on whole folders and rename files by
 > their content, OCR scanned documents (deskew, auto-rotate, cleanup and a review screen for doubtful words), merge,
-> split, reorder pages, compress, watermark, number pages and password-protect. One offline `.exe`, built with
+> split, reorder pages, compress, watermark, number pages and password-protect. A portable, offline zip (no installer), built with
 > Python, Qt (PySide6) and MuPDF, with 582 automated tests running on GitHub Actions. Version 2.0 is a full visual
 > redesign: one pastel color per tool category, a shared step-by-step layout for every tool and a Ctrl K command
 > palette that understands everyday words.
@@ -224,8 +224,13 @@ salen de la interfaz real con `scripts/capturas.py`.
 
 ## Descargar
 
-Descarga **`RonyPDF.exe`** de la [última versión](https://github.com/Rony0218/RonyPDF/releases/latest) y ábrelo.
-La primera apertura tarda unos segundos porque el ejecutable se descomprime en una carpeta temporal.
+1. Descarga **`RonyPDF-…-portable.zip`** de la [última versión](https://github.com/Rony0218/RonyPDF/releases/latest).
+2. Clic derecho sobre el zip → **«Extraer todo…»**. Desde dentro del zip no funciona.
+3. Abre la carpeta `RonyPDF` y haz doble clic en **`RonyPDF.exe`**. Conserva la carpeta completa: el `.exe` necesita
+   la carpeta `_internal` que está a su lado.
+
+Para actualizar, extrae la versión nueva encima de la anterior y acepta reemplazar los archivos: tus ajustes, firmas,
+sellos y respaldos se conservan.
 
 > **Descárgalo solo desde la [página de versiones](https://github.com/Rony0218/RonyPDF/releases) de este
 > repositorio.** Cada versión se compila en GitHub, no en un computador personal, y trae su SHA-256 y una atestación
@@ -242,6 +247,12 @@ sellos), `RonyPDF_respaldos` (las copias de respaldo de «Guardar»), `RonyPDF_r
 `RonyPDF_flujos` (los flujos de «Acciones por lotes») y `RonyPDF_lotes` (para deshacer un renombrado), además de
 `RonyPDF_diccionario.txt` (tus palabras para el OCR). Todas se pueden borrar. No escribe en el registro de Windows:
 solo lo lee para saber si hay Office.
+
+**Si RonyPDF se cierra de forma inesperada**, al abrirlo de nuevo ofrece «Guardar informe…»: un archivo de texto
+con los datos técnicos de las últimas sesiones (versiones, pantalla y operación en curso, y dónde se detuvo el
+programa), sin el contenido de tus documentos ni sus rutas. Esas sesiones se guardan en `RonyPDF_registros`, junto
+a `RonyPDF.json` (solo las 10 últimas), y nunca salen del equipo: el informe lo compartes tú si quieres, por
+ejemplo en un *issue* del repositorio.
 
 ## Cómo está hecho
 
@@ -279,8 +290,10 @@ solo lo lee para saber si hay Office.
   `test_diseno.py` vigila la plantilla y que cada pantalla quepa sin recortes en una ventana de 1000 × 660.
   Las que usan Office de verdad se saltan si no está instalado, y ninguna envía nada a una impresora. Corren en
   Windows con GitHub Actions en cada cambio.
-- **PyInstaller** empaqueta todo en un `.exe` de unos 60 MB; al publicar una etiqueta `vX.Y.Z`, GitHub Actions lo
-  compila y lo adjunta a la versión.
+- **PyInstaller** empaqueta todo en una carpeta portable (`--onedir`) que se distribuye en un zip. No es un solo
+  `.exe` a propósito: un `.exe` «onefile» se descomprime entero en `%TEMP%` cada vez que se abre, lo que es lento
+  en discos mecánicos y deja basura si la app se cierra mal. Al publicar una etiqueta `vX.Y.Z`, GitHub Actions
+  compila el zip y lo adjunta a la versión con sus sumas SHA-256 y una atestación de procedencia.
 
 Unas 46.500 líneas de Python en `ronypdf/` y 12.500 de pruebas.
 
@@ -329,7 +342,7 @@ El código se escribió con [Claude Code](https://claude.com/claude-code) como c
 Requiere Python 3.10 o superior en Windows.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1      # crea .venv y genera dist\RonyPDF.exe
+powershell -ExecutionPolicy Bypass -File build.ps1      # crea .venv, dist\RonyPDF\ y el zip portable
 .venv\Scripts\python.exe run.py                         # o ejecutarla sin compilar
 ```
 
